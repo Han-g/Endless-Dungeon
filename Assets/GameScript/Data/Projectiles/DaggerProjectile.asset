@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b26dd8568beacec4fb25e69758759c0d, type: 3}
+  m_Name: DaggerProjectile
+  m_EditorClassIdentifier: Assembly-CSharp::ProjectileDefinition
+  projectileId: 3
+  displayName: Dagger
+  prefab: {fileID: 6544642362037372585, guid: f7eef57f588af494dbcfff5731dcfe0d, type: 3}
+  projectileSprite: {fileID: 7401665434839556812, guid: 932ddca398d74a54aaae223ae3bf697c, type: 3}
+  projectileScale: 0.8
+  baseDamage: 10
+  attacksPerSecond: 6
+  moveSpeed: 12
+  range: 8
+  spawnDistance: 0.7
+  rotationOffset: -90
