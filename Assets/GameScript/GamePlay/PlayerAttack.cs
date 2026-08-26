@@ -14,6 +14,13 @@ public class PlayerAttack : MonoBehaviour
     [SerializeField]
     private Transform attackOrigin;
 
+    [SerializeField, Min(1f)]
+    private float networkAimSendRate = 20f;
+
+    private NetworkManager networkManager;
+    private bool networkControlled;
+    private float nextNetworkSendTime;
+
     private PlayerHP playerHP;
     private PlayerStats stats;
 
@@ -64,6 +71,13 @@ public class PlayerAttack : MonoBehaviour
     private void Update()
     {
         UpdateAimDirection();
+
+        if (networkControlled)
+        {
+            TrySendNetworkAttack();
+            return;
+        }
+
         TryAttack();
     }
 
@@ -161,5 +175,41 @@ public class PlayerAttack : MonoBehaviour
             stats.ProjectileRange,
             stats.Projectile.ProjectileSprite,
             stats.Projectile.ProjectileScale);
+    }
+
+    public void ConfigureNetworkMode(
+    NetworkManager targetNetworkManager,
+    bool isLocalPlayer)
+    {
+        networkManager =
+            targetNetworkManager;
+
+        networkControlled = true;
+
+        enabled = isLocalPlayer;
+    }
+
+    private void TrySendNetworkAttack()
+    {
+        if (
+            networkManager == null ||
+            playerHP.IsDead)
+        {
+            return;
+        }
+
+        if (
+            Time.unscaledTime <
+            nextNetworkSendTime)
+        {
+            return;
+        }
+
+        nextNetworkSendTime =
+            Time.unscaledTime +
+            1f / networkAimSendRate;
+
+        networkManager.SendAttackInput(
+            aimDirection);
     }
 }

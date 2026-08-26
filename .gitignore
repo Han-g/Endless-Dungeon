@@ -108,3 +108,10 @@ InitTestScene*.unity*
 
 # Unity 6 generated solution file
 *.slnx
+
+# Server cache files
+/Server/node_modules/
+/Server/dist/
+/Server/.env
+/Server/logs/
+*.log

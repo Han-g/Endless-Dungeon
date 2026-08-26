@@ -119,6 +119,73 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &79530076
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 79530079}
+  - component: {fileID: 79530078}
+  - component: {fileID: 79530077}
+  m_Layer: 0
+  m_Name: NetworkWorld
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &79530077
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 79530076}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 86bc6357bdba9d54b9c460c52cc72369, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NetworkPlayerRegistry
+  networkManager: {fileID: 79530078}
+  playerPrefab: {fileID: 4789944230193586405, guid: 1f2e198e1be2e44459edeaf691ac57e0, type: 3}
+  playerContainer: {fileID: 2041317601}
+  cameraFollow: {fileID: 519420033}
+--- !u!114 &79530078
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 79530076}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 979d07103bb067349b448aa98e80c9b2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NetworkManager
+  serverAddress: ws://localhost:2567
+  roomName: my_room
+  playerName: Player
+  connectOnStart: 1
+--- !u!4 &79530079
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 79530076}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 2041317601}
+  - {fileID: 502964662}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &169512294
 GameObject:
   m_ObjectHideFlags: 0
@@ -393,6 +460,27 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 195982996}
   m_CullTransparentMesh: 1
+--- !u!1 &423286197 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6805760165833782851, guid: 1f2e198e1be2e44459edeaf691ac57e0, type: 3}
+  m_PrefabInstance: {fileID: 1385751397}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &423286202
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 423286197}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3dfdd9f732666124c8e1b9ef8fa45c9a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerOutline
+  silhouetteMaterial: {fileID: 2100000, guid: eec8c7c2cbc4391438349f42779ee6a4, type: 2}
+  localPlayerColor: {r: 0.1, g: 1, b: 0.2, a: 1}
+  remotePlayerColor: {r: 1, g: 0.15, b: 0.15, a: 1}
+  thicknessPixels: 1
 --- !u!1 &437377314
 GameObject:
   m_ObjectHideFlags: 0
@@ -409,7 +497,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &437377315
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -572,6 +660,58 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 447014414}
   m_CullTransparentMesh: 1
+--- !u!1 &502964661
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 502964662}
+  - component: {fileID: 502964663}
+  m_Layer: 0
+  m_Name: Projectiles
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &502964662
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 502964661}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 79530079}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &502964663
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 502964661}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b610fca56cc84594dac032a034b4f702, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NetworkProjectileRegistry
+  networkManager: {fileID: 79530078}
+  projectilePrefab: {fileID: 4042691302368560405, guid: e01d24421a0bef948908c9e57d30de5d, type: 3}
+  projectileContainer: {fileID: 502964662}
+  projectileDefinitions:
+  - {fileID: 11400000, guid: d38737fb2d1282e4a816b357850d1da7, type: 2}
+  - {fileID: 11400000, guid: ac610111f5a065444ba85d1f0e538729, type: 2}
+  - {fileID: 11400000, guid: 8f4e9cddd5e506842a0107aec51d4711, type: 2}
+  - {fileID: 11400000, guid: 3dfeca1b08567074498f29509009d6e5, type: 2}
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
@@ -1031,7 +1171,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &988291074
 Transform:
   m_ObjectHideFlags: 0
@@ -1280,10 +1420,17 @@ PrefabInstance:
       propertyPath: m_Name
       value: Player
       objectReference: {fileID: 0}
+    - target: {fileID: 8746208350087070817, guid: 1f2e198e1be2e44459edeaf691ac57e0, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 6805760165833782851, guid: 1f2e198e1be2e44459edeaf691ac57e0, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 423286202}
   m_SourcePrefab: {fileID: 100100000, guid: 1f2e198e1be2e44459edeaf691ac57e0, type: 3}
 --- !u!1001 &1466982732
 PrefabInstance:
@@ -1770,6 +1917,37 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1925223012}
   m_CullTransparentMesh: 1
+--- !u!1 &2041317600
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2041317601}
+  m_Layer: 0
+  m_Name: Players
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2041317601
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2041317600}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 79530079}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2084535795
 GameObject:
   m_ObjectHideFlags: 0
@@ -2075,6 +2253,7 @@ Transform:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
+  - {fileID: 79530079}
   - {fileID: 519420032}
   - {fileID: 619394802}
   - {fileID: 1466982732}

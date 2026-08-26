@@ -21,6 +21,9 @@ public class PlayerAnimationController : MonoBehaviour
     private SpriteRenderer spriteRenderer;
     private Rigidbody2D playerBody;
 
+    private NetworkPlayerView networkPlayerView;
+    private CharacterMove characterMove;
+
     // 이동 중 Move Blend Tree에서 사용할 8방향
     private Vector2 lastMoveDirection = Vector2.down;
 
@@ -34,6 +37,9 @@ public class PlayerAnimationController : MonoBehaviour
         animator = GetComponent<Animator>();
         spriteRenderer = GetComponent<SpriteRenderer>();
         playerBody = GetComponentInParent<Rigidbody2D>();
+
+        networkPlayerView = GetComponentInParent<NetworkPlayerView>();
+        characterMove = GetComponentInParent<CharacterMove>();
 
         if (playerBody == null)
         {
@@ -53,7 +59,33 @@ public class PlayerAnimationController : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        Vector2 velocity = playerBody.linearVelocity;
+        Vector2 velocity;
+
+        if (networkPlayerView != null)
+        {
+            // 내 캐릭터는 입력값을 사용하여
+            // 네트워크 지연 없이 즉시 애니메이션을 재생합니다.
+            if (
+                networkPlayerView.IsLocalPlayer &&
+                characterMove != null)
+            {
+                velocity =
+                    characterMove.MoveDirection;
+            }
+            else
+            {
+                // 다른 플레이어는 서버에서 받은
+                // 이동 속도로 애니메이션을 재생합니다.
+                velocity =
+                    networkPlayerView.NetworkVelocity;
+            }
+        }
+        else
+        {
+            // 기존 싱글플레이 호환
+            velocity =
+                playerBody.linearVelocity;
+        }
 
         bool isMoving =
             velocity.sqrMagnitude >

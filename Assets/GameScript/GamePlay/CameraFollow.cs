@@ -93,4 +93,15 @@ public class CameraFollow : MonoBehaviour
         transform.position = SnapToPixelGrid(smoothPosition);
         smoothVelocity = Vector3.zero;
     }
+
+    public void SetTarget(
+    Transform newTarget)
+    {
+        target = newTarget;
+
+        if (target != null)
+        {
+            SnapToTarget();
+        }
+    }
 }
