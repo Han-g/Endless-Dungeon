@@ -14,11 +14,13 @@ public class PlayerAnimationController : MonoBehaviour
     private static readonly int IsMovingHash =
         Animator.StringToHash("IsMoving");
 
+    private static readonly int IsDeadHash =
+    Animator.StringToHash("IsDead");
+
     [SerializeField, Min(0f)]
     private float movingThreshold = 0.05f;
 
     private Animator animator;
-    private SpriteRenderer spriteRenderer;
     private Rigidbody2D playerBody;
 
     private NetworkPlayerView networkPlayerView;
@@ -30,12 +32,9 @@ public class PlayerAnimationController : MonoBehaviour
     // 정지했을 때 Idle Blend Tree에서 사용할 4방향
     private Vector2 lastIdleDirection = Vector2.down;
 
-    private Vector2 lastDirection = Vector2.down;
-
     private void Awake()
     {
         animator = GetComponent<Animator>();
-        spriteRenderer = GetComponent<SpriteRenderer>();
         playerBody = GetComponentInParent<Rigidbody2D>();
 
         networkPlayerView = GetComponentInParent<NetworkPlayerView>();
@@ -50,15 +49,32 @@ public class PlayerAnimationController : MonoBehaviour
             enabled = false;
         }
     }
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
-    {
-        
-    }
 
     // Update is called once per frame
     void Update()
     {
+        if (networkPlayerView != null)
+        {
+            if (!networkPlayerView.IsInitialized)
+            {
+                return;
+            }
+
+            bool isDead =
+                !networkPlayerView.IsAlive ||
+                networkPlayerView.CurrentHp <= 0;
+
+            animator.SetBool(IsDeadHash, isDead);
+
+            if (isDead)
+            {
+                animator.SetBool(IsMovingHash, false);
+
+                // 사망 중에는 이동 애니메이션을 갱신하지 않습니다.
+                return;
+            }
+        }
+
         Vector2 velocity;
 
         if (networkPlayerView != null)

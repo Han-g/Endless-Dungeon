@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 3245108087656778840}
   - component: {fileID: 6183210582874461097}
   - component: {fileID: 7064101568966396067}
+  - component: {fileID: 7006742000011836251}
   m_Layer: 8
   m_Name: Visual
   m_TagString: Untagged
@@ -146,6 +147,22 @@ MonoBehaviour:
   localPlayerColor: {r: 0.1, g: 1, b: 0.2, a: 1}
   remotePlayerColor: {r: 1, g: 0.15, b: 0.15, a: 1}
   thicknessPixels: 1
+--- !u!111 &7006742000011836251
+Animation:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6805760165833782851}
+  m_Enabled: 1
+  serializedVersion: 4
+  m_Animation: {fileID: 0}
+  m_Animations: []
+  m_WrapMode: 0
+  m_PlayAutomatically: 1
+  m_AnimatePhysics: 0
+  m_UpdateMode: 0
+  m_CullingType: 0
 --- !u!1 &8706547828584696620
 GameObject:
   m_ObjectHideFlags: 0
@@ -189,13 +206,10 @@ GameObject:
   - component: {fileID: 7511794425945316753}
   - component: {fileID: 5721364110139972184}
   - component: {fileID: 4984217098425984106}
-  - component: {fileID: 5688453749721650007}
-  - component: {fileID: 8370519031574450977}
   - component: {fileID: 8663234281060990620}
-  - component: {fileID: 8327210024549656093}
-  - component: {fileID: 7834570439382150107}
   - component: {fileID: 4789944230193586405}
   - component: {fileID: 7032986037731443247}
+  - component: {fileID: 4469558057803512410}
   m_Layer: 8
   m_Name: Player
   m_TagString: Untagged
@@ -314,32 +328,6 @@ MonoBehaviour:
   m_DefaultActionMap: Game
   m_SplitScreenIndex: -1
   m_Camera: {fileID: 0}
---- !u!114 &5688453749721650007
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8746208350087070817}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6e85d91918412594e9bf88310318b162, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerHP
-  damageCooldown: 0.5
---- !u!114 &8370519031574450977
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8746208350087070817}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0d6702df438db944797ef4bbb363c3a8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerStats
-  startingCharacter: {fileID: 11400000, guid: b29fa3ca590c6e942be4420330611e8e, type: 2}
 --- !u!114 &8663234281060990620
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -352,33 +340,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f39a984b32c87164a8ce969b1b65f165, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CharacterMove
---- !u!114 &8327210024549656093
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8746208350087070817}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c529aa8500510d443b875c3995245352, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerMotor
---- !u!114 &7834570439382150107
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8746208350087070817}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: de1c094838d88cd40bbd30904326b781, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerAttack
-  mainCamera: {fileID: 0}
-  attackOrigin: {fileID: 4806685014441960233}
-  networkAimSendRate: 20
 --- !u!114 &4789944230193586405
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -393,7 +354,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NetworkPlayerView
   positionLerpSpeed: 15
   inputSendRate: 20
-  networkAimSendRate: 20
 --- !u!212 &7032986037731443247
 SpriteRenderer:
   serializedVersion: 3
@@ -454,3 +414,18 @@ SpriteRenderer:
   m_WasSpriteAssigned: 0
   m_SpriteSortPoint: 0
   m_BlendShapeWeights: []
+--- !u!114 &4469558057803512410
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8746208350087070817}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5f44e1e52a585b54bafb4acb7646432e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NetworkAimInputSender
+  mainCamera: {fileID: 0}
+  attackOrigin: {fileID: 4806685014441960233}
+  sendRate: 20

@@ -16,8 +16,8 @@ namespace EndlessDungeon.Network.Generated {
 [Preserve]
 #endif
 public EnemyState() { }
-		[Type(0, "string")]
-		public string typeId = default(string);
+		[Type(0, "uint8")]
+		public byte typeId = default(byte);
 
 		[Type(1, "float32")]
 		public float x = default(float);
@@ -25,13 +25,19 @@ public EnemyState() { }
 		[Type(2, "float32")]
 		public float y = default(float);
 
-		[Type(3, "int32")]
+		[Type(3, "float32")]
+		public float velocityX = default(float);
+
+		[Type(4, "float32")]
+		public float velocityY = default(float);
+
+		[Type(5, "int32")]
 		public int hp = default(int);
 
-		[Type(4, "int32")]
+		[Type(6, "int32")]
 		public int maxHp = default(int);
 
-		[Type(5, "boolean")]
+		[Type(7, "boolean")]
 		public bool alive = default(bool);
 	}
 }

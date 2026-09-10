@@ -22,28 +22,34 @@ public PlayerState() { }
 		[Type(1, "uint8")]
 		public byte characterId = default(byte);
 
-		[Type(2, "float32")]
-		public float x = default(float);
+		[Type(2, "uint8")]
+		public byte level = default(byte);
 
-		[Type(3, "float32")]
-		public float y = default(float);
+		[Type(3, "uint32")]
+		public uint killCount = default(uint);
 
 		[Type(4, "float32")]
-		public float velocityX = default(float);
+		public float x = default(float);
 
 		[Type(5, "float32")]
+		public float y = default(float);
+
+		[Type(6, "float32")]
+		public float velocityX = default(float);
+
+		[Type(7, "float32")]
 		public float velocityY = default(float);
 
-		[Type(6, "int32")]
+		[Type(8, "int32")]
 		public int hp = default(int);
 
-		[Type(7, "int32")]
+		[Type(9, "int32")]
 		public int maxHp = default(int);
 
-		[Type(8, "boolean")]
+		[Type(10, "boolean")]
 		public bool alive = default(bool);
 
-		[Type(9, "uint32")]
+		[Type(11, "uint32")]
 		public uint lastProcessedInput = default(uint);
 	}
 }

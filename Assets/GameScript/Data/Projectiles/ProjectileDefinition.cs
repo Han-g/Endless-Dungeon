@@ -12,10 +12,6 @@ public class ProjectileDefinition : ScriptableObject
     [SerializeField]
     private string displayName;
 
-    [Header("Prefab")]
-    [SerializeField]
-    private PlayerProjectile prefab;
-
     [SerializeField]
     private Sprite projectileSprite;
 
@@ -43,7 +39,6 @@ public class ProjectileDefinition : ScriptableObject
 
     public int ProjectileId => projectileId;
     public string DisplayName => displayName;
-    public PlayerProjectile Prefab => prefab;
     public Sprite ProjectileSprite => projectileSprite;
     public float ProjectileScale => projectileScale;
 

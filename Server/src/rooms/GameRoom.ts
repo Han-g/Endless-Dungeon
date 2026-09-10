@@ -53,12 +53,26 @@ export class GameRoom extends Room<{ state: MyRoomState; }>
         this.simulation =
             new GameSimulation(this.state);
 
-        // 50ms = 초당 20번 서버 시뮬레이션
         this.setSimulationInterval(
             (deltaTimeMilliseconds) => {
-                this.simulation.update(
-                    deltaTimeMilliseconds
-                );
+                const wasFinished =
+                    this.state.game.phase === "finished";
+
+                this.simulation.update(deltaTimeMilliseconds);
+
+                if (
+                    !wasFinished &&
+                    this.state.game.phase === "finished"
+                ) {
+                    // 정원 도달로 자동 잠금된 방이라도
+                    // 종료 시에는 명시적으로 잠급니다.
+                    void this.lock().catch((error) => {
+                        console.error(
+                            "[GameRoom] 종료된 방 잠금 실패",
+                            error
+                        );
+                    });
+                }
             },
             50
         );
@@ -72,6 +86,10 @@ export class GameRoom extends Room<{ state: MyRoomState; }>
         client: Client,
         options: any
     ): void {
+        if (this.state.game.phase === "finished") {
+            throw new Error("이미 종료된 게임입니다.");
+        }
+
         const spawnPoints = [
             { x: -2, y: 0 },
             { x: 2, y: 0 },
@@ -85,6 +103,17 @@ export class GameRoom extends Room<{ state: MyRoomState; }>
 
         const spawnPoint =
             spawnPoints[spawnIndex];
+
+        if (
+            !this.simulation.mapCollision.canStand(
+                spawnPoint.x,
+                spawnPoint.y
+            )
+        ) {
+            throw new Error(
+                "Player spawn is inside an obstacle."
+            );
+        }
 
         const player = new PlayerState();
 
@@ -112,6 +141,13 @@ export class GameRoom extends Room<{ state: MyRoomState; }>
         player.hp = 100;
         player.maxHp = 100;
         player.alive = true;
+
+        // 게임 시작 버튼을 눌렀을 때 전환하게 수정
+        if (this.state.game.phase === "waiting") {
+            this.state.game.phase = "playing";
+            this.state.game.elapsedSeconds = 0;
+            this.state.game.seed = Date.now() & 0x7fffffff;
+        }
 
         this.state.players.set(
             client.sessionId,

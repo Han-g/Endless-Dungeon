@@ -16,6 +16,14 @@ interface RuntimeProjectile {
     speed: number;
     damage: number;
     remainingDistance: number;
+
+    previousX: number;
+    previousY: number;
+
+    hitRadius: number;
+    remainingHitCount: number;
+
+    hitEnemyIds: Set<string>;
 }
 
 interface ProjectileConfig {
@@ -25,6 +33,10 @@ interface ProjectileConfig {
     range: number;
     damage: number;
     spawnDistance: number;
+    originOffsetY: number;
+    hitRadius: number;
+
+    maxHitCount: number;
 }
 
 const PROJECTILE_CONFIGS:
@@ -38,7 +50,10 @@ const PROJECTILE_CONFIGS:
                 speed: 12,
                 range: 8,
                 damage: 15,
-                spawnDistance: 0.7
+                spawnDistance: 0.3,
+                originOffsetY: 0.5,
+                hitRadius: 0.25,
+                maxHitCount: 2
             }
         ],
         [
@@ -49,7 +64,10 @@ const PROJECTILE_CONFIGS:
                 speed: 14,
                 range: 10,
                 damage: 10,
-                spawnDistance: 0.7
+                spawnDistance: 0.3,
+                originOffsetY: 0.5,
+                hitRadius: 0.25,
+                maxHitCount: 1
             }
         ],
         [
@@ -60,7 +78,10 @@ const PROJECTILE_CONFIGS:
                 speed: 13,
                 range: 7,
                 damage: 12,
-                spawnDistance: 0.6
+                spawnDistance: 0.3,
+                originOffsetY: 0.5,
+                hitRadius: 0.25,
+                maxHitCount: 2
             }
         ],
         [
@@ -71,13 +92,34 @@ const PROJECTILE_CONFIGS:
                 speed: 10,
                 range: 9,
                 damage: 20,
-                spawnDistance: 0.8
+                spawnDistance: 0.3,
+                originOffsetY: 0.5,
+                hitRadius: 0.25,
+                maxHitCount: 3
             }
         ]
     ]);
 
 const MAX_PROJECTILES = 512;
 const MAX_DELTA_SECONDS = 0.1;
+
+function getLevelPierceBonus(
+    level: number
+): number {
+    if (level >= 8) {
+        return 3;
+    }
+
+    if (level >= 5) {
+        return 2;
+    }
+
+    if (level >= 3) {
+        return 1;
+    }
+
+    return 0;
+}
 
 export class ProjectileSystem {
     private readonly aimInputs =
@@ -140,6 +182,7 @@ export class ProjectileSystem {
         );
     }
 
+
     public update(
         deltaTimeMilliseconds: number
     ): void {
@@ -153,9 +196,11 @@ export class ProjectileSystem {
 
         this.elapsedSeconds += deltaSeconds;
 
-        this.spawnProjectiles();
         this.moveProjectiles(deltaSeconds);
+        this.spawnProjectiles();
     }
+
+
 
     private spawnProjectiles(): void {
         this.state.players.forEach(
@@ -174,6 +219,10 @@ export class ProjectileSystem {
                     PROJECTILE_CONFIGS.get(
                         player.characterId) ??
                     PROJECTILE_CONFIGS.get(1)!;
+
+                const levelPierceBonus =
+                    getLevelPierceBonus(
+                        player.level);
 
                 const aim =
                     this.aimInputs.get(sessionId);
@@ -198,7 +247,8 @@ export class ProjectileSystem {
                     player.x,
                     player.y,
                     aim,
-                    config
+                    config,
+                    levelPierceBonus
                 );
 
                 this.nextFireTimes.set(
@@ -215,7 +265,8 @@ export class ProjectileSystem {
         playerX: number,
         playerY: number,
         aim: StoredAimInput,
-        config: ProjectileConfig
+        config: ProjectileConfig,
+        levelPierceBonus: number
     ): void {
         const projectileId =
             `projectile-${this.nextProjectileId++}`;
@@ -238,12 +289,16 @@ export class ProjectileSystem {
             aim.y;
 
         // 플레이어 중심에서 조금 떨어진 위치에 생성
+        const originX = playerX;
+        const originY =
+            playerY + config.originOffsetY;
+
         projectile.x =
-            playerX +
+            originX +
             aim.x * config.spawnDistance;
 
         projectile.y =
-            playerY +
+            originY +
             aim.y * config.spawnDistance;
 
         // Colyseus State에 등록
@@ -259,8 +314,15 @@ export class ProjectileSystem {
             {
                 speed: config.speed,
                 damage: config.damage,
-                remainingDistance:
-                    config.range
+                remainingDistance: config.range,
+
+                previousX: projectile.x,
+                previousY: projectile.y,
+
+                hitRadius: config.hitRadius,
+                remainingHitCount: Math.max(1, config.maxHitCount + levelPierceBonus),
+
+                hitEnemyIds: new Set<string>()
             }
         );
     }
@@ -268,7 +330,7 @@ export class ProjectileSystem {
     private moveProjectiles(
         deltaSeconds: number
     ): void {
-        const removeIds: string[] = [];
+        const invalidIds: string[] = [];
 
         this.state.projectiles.forEach(
             (projectile, projectileId) => {
@@ -277,37 +339,107 @@ export class ProjectileSystem {
                         projectileId);
 
                 if (runtime === undefined) {
-                    removeIds.push(projectileId);
+                    invalidIds.push(projectileId);
                     return;
                 }
 
+                runtime.previousX = projectile.x;
+                runtime.previousY = projectile.y;
+
                 const moveDistance =
-                    runtime.speed * deltaSeconds;
+                    Math.max(
+                        0,
+                        Math.min(
+                            runtime.speed *
+                            deltaSeconds,
 
-                projectile.x +=
-                    projectile.directionX *
-                    moveDistance;
+                            runtime.remainingDistance
+                        )
+                    );
 
-                projectile.y +=
-                    projectile.directionY *
-                    moveDistance;
+                projectile.x += projectile.directionX * moveDistance;
+                projectile.y += projectile.directionY * moveDistance;
 
-                runtime.remainingDistance -=
-                    moveDistance;
+                runtime.remainingDistance -= moveDistance;
+            }
+        );
 
+        for (const projectileId of invalidIds) {
+            this.state.projectiles.delete(
+                projectileId);
+        }
+    }
+
+    public getRuntimeProjectile(
+        projectileId: string
+    ): Readonly<RuntimeProjectile> | undefined {
+        return this.runtimeProjectiles.get(
+            projectileId);
+    }
+
+    public canHitEnemy(
+        projectileId: string,
+        enemyId: string
+    ): boolean {
+        const runtime =
+            this.runtimeProjectiles.get(
+                projectileId);
+
+        return runtime !== undefined &&
+            !runtime.hitEnemyIds.has(enemyId);
+    }
+
+    public recordEnemyHit(
+        projectileId: string,
+        enemyId: string
+    ): boolean {
+        const runtime =
+            this.runtimeProjectiles.get(
+                projectileId);
+
+        if (runtime === undefined) {
+            return true;
+        }
+
+        if (runtime.hitEnemyIds.has(enemyId)) {
+            return false;
+        }
+
+        runtime.hitEnemyIds.add(enemyId);
+        runtime.remainingHitCount -= 1;
+
+        // true면 타격 한도를 모두 사용한 상태
+        return runtime.remainingHitCount <= 0;
+    }
+
+    public removeProjectile(
+        projectileId: string
+    ): void {
+        this.state.projectiles.delete(
+            projectileId);
+
+        this.runtimeProjectiles.delete(
+            projectileId);
+    }
+
+    public removeExpiredProjectiles(): void {
+        const removeIds: string[] = [];
+
+        this.runtimeProjectiles.forEach(
+            (runtime, projectileId) => {
                 if (
-                    runtime.remainingDistance <= 0
+                    runtime.remainingDistance <= 0 ||
+                    !this.state.projectiles.has(
+                        projectileId)
                 ) {
-                    removeIds.push(projectileId);
+                    removeIds.push(
+                        projectileId);
                 }
             }
         );
 
         for (const projectileId of removeIds) {
-            this.state.projectiles.delete(
-                projectileId);
-
-            this.runtimeProjectiles.delete(
+            this.removeProjectile(
                 projectileId);
         }
     }

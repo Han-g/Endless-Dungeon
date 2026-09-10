@@ -21,21 +21,17 @@ public sealed class NetworkPlayerView : MonoBehaviour
     private Vector2 lastSentDirection;
     private bool hasSentInput;
 
-    [SerializeField, Min(1f)]
-    private float networkAimSendRate = 20f;
-    private bool networkControlled;
-    private float nextNetworkSendTime;
-
     private Rigidbody2D body;
     private PlayerInput playerInput;
     private CharacterMove characterMove;
-    private PlayerMotor playerMotor;
-    private PlayerAttack playerAttack;
+    private NetworkAimInputSender aimInputSender;
 
     private PlayerOutline playerOutline;
 
     private Vector2 targetPosition;
     private bool initialized;
+
+    public bool IsInitialized => initialized;
 
     public string SessionId
     {
@@ -78,8 +74,7 @@ public sealed class NetworkPlayerView : MonoBehaviour
         body = GetComponent<Rigidbody2D>();
         playerInput = GetComponent<PlayerInput>();
         characterMove = GetComponent<CharacterMove>();
-        playerMotor = GetComponent<PlayerMotor>();
-        playerAttack = GetComponent<PlayerAttack>();
+        aimInputSender = GetComponent<NetworkAimInputSender>();
         playerOutline = GetComponentInChildren<PlayerOutline>(true);
     }
 
@@ -104,19 +99,11 @@ public sealed class NetworkPlayerView : MonoBehaviour
                 ? $"LocalPlayer_{sessionId}"
                 : $"RemotePlayer_{sessionId}";
 
-        // 현재 단계에서는 위치를 서버가 결정하므로
-        // 기존 로컬 이동 계산은 끈다.
-        if (playerMotor != null)
+        if (aimInputSender != null)
         {
-            playerMotor.enabled = false;
-        }
-
-        // 공격도 서버 메시지 방식으로 변경하기 전까지
-        // 기존 로컬 공격 계산은 끄는 것을 권장한다.
-        if (playerAttack != null)
-        {
-            playerAttack.ConfigureNetworkMode(
+            aimInputSender.Initialize(
                 networkManager,
+                this,
                 isLocalPlayer);
         }
 

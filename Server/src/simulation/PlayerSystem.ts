@@ -1,4 +1,5 @@
 import { MyRoomState } from "../rooms/schema/MyRoomState.js";
+import { MapCollision } from "./MapCollision.js";
 
 export interface MoveInputMessage {
     x: number;
@@ -21,7 +22,8 @@ export class PlayerSystem {
         new Map<string, StoredMoveInput>();
 
     public constructor(
-        private readonly state: MyRoomState
+        private readonly state: MyRoomState,
+        private readonly mapCollision: MapCollision
     ) {
     }
 
@@ -121,17 +123,27 @@ export class PlayerSystem {
                     return;
                 }
 
-                player.velocityX =
-                    input.x * PLAYER_MOVE_SPEED;
+                const previousX = player.x;
+                const previousY = player.y;
 
-                player.velocityY =
-                    input.y * PLAYER_MOVE_SPEED;
+                const next = this.mapCollision.move(
+                    previousX,
+                    previousY,
+                    input.x * PLAYER_MOVE_SPEED * deltaSeconds,
+                    input.y * PLAYER_MOVE_SPEED * deltaSeconds
+                );
 
-                player.x +=
-                    player.velocityX * deltaSeconds;
+                player.x = next.x;
+                player.y = next.y;
 
-                player.y +=
-                    player.velocityY * deltaSeconds;
+                // 벽에 막힌 결과까지 반영한 실제 이동 속도를 전송합니다.
+                player.velocityX = deltaSeconds > 0
+                    ? (player.x - previousX) / deltaSeconds
+                    : 0;
+
+                player.velocityY = deltaSeconds > 0
+                    ? (player.y - previousY) / deltaSeconds
+                    : 0;
 
                 player.lastProcessedInput =
                     input.sequence;

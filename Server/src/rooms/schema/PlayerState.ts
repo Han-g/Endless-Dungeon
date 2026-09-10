@@ -5,6 +5,10 @@ export class PlayerState extends Schema {
 
     @type("uint8") characterId: number = 1;
 
+    @type("uint8") level: number = 1;
+
+    @type("uint32") killCount: number = 0;
+
     @type("float32") x: number = 0;
     @type("float32") y: number = 0;
 
