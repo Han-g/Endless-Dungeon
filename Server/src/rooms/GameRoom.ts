@@ -4,6 +4,10 @@ import {
     CloseCode
 } from "colyseus";
 
+import { performance } from "node:perf_hooks";
+
+import { ClockTimer } from "@colyseus/timer";
+
 import { MyRoomState } from
     "./schema/MyRoomState.js";
 
@@ -13,14 +17,26 @@ import { PlayerState } from
 import { GameSimulation } from
     "../simulation/GameSimulation.js";
 
+class MonotonicRoomClock extends ClockTimer {
+    constructor() {
+        super(false);
+
+        // 시스템 시각 변경의 영향을 받지 않는 경과시간 사용
+        this.now = () => performance.now();
+        this.start(false);
+    }
+}
+
 export class GameRoom extends Room<{ state: MyRoomState; }>
 {
+    public override clock = new MonotonicRoomClock();
+
     public state = new MyRoomState();
 
     public maxClients = 4;
 
     // 이동 20회 + 이후 공격 메시지까지 고려
-    public maxMessagesPerSecond = 60;
+    public maxMessagesPerSecond = 120;
 
     private simulation!: GameSimulation;
 

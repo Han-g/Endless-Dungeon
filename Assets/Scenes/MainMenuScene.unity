@@ -1704,6 +1704,7 @@ GameObject:
   - component: {fileID: 429494945}
   - component: {fileID: 429494947}
   - component: {fileID: 429494946}
+  - component: {fileID: 429494948}
   m_Layer: 5
   m_Name: LoginPanel
   m_TagString: Untagged
@@ -1769,6 +1770,24 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 429494944}
   m_CullTransparentMesh: 1
+--- !u!114 &429494948
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 429494944}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 049cb2bfcb244664386c03adc6f39bd2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LoginController
+  apiBaseUrl: http://localhost:2567
+  loginIdInput: {fileID: 535446657}
+  passwordInput: {fileID: 1370119082}
+  loginButton: {fileID: 553404911}
+  statusText: {fileID: 977960297}
+  menuController: {fileID: 971438798}
 --- !u!1 &440045273
 GameObject:
   m_ObjectHideFlags: 0
@@ -2347,9 +2366,9 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 971438798}
-        m_TargetAssemblyTypeName: GameSecneController, Assembly-CSharp
-        m_MethodName: OnLoginSucceeded
+      - m_Target: {fileID: 429494948}
+        m_TargetAssemblyTypeName: LoginController, Assembly-CSharp
+        m_MethodName: OnLoginClicked
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}

@@ -17,11 +17,7 @@ public class GameSecneController : MonoBehaviour
     [SerializeField] private GameObject roomPanel;
     [SerializeField] private GameObject characterSelectPanel;
 
-    public MainMenuState CurrentState
-    {
-        get;
-        private set;
-    }
+    public MainMenuState CurrentState { get; private set; }
 
     private void Awake()
     {
@@ -35,7 +31,20 @@ public class GameSecneController : MonoBehaviour
 
     public void OnLoginSucceeded()
     {
+        if (ClientSession.Instance == null ||
+            !ClientSession.Instance.IsAuthenticated)
+        {
+            Debug.LogWarning("인증된 로그인 세션이 필요합니다.", this);
+            return;
+        }
+
         Show(MainMenuState.Lobby);
+    }
+
+    public void OnLoggedOut()
+    {
+        ClientSession.Instance?.ClearAuthentication();
+        Show(MainMenuState.Login);
     }
 
     public void OnRoomJoined()
@@ -56,20 +65,11 @@ public class GameSecneController : MonoBehaviour
     private void Show(MainMenuState state)
     {
         CurrentState = state;
-
-        titlePanel.SetActive(
-            state == MainMenuState.Title);
-
-        loginPanel.SetActive(
-            state == MainMenuState.Login);
-
-        lobbyPanel.SetActive(
-            state == MainMenuState.Lobby);
-
-        roomPanel.SetActive(
-            state == MainMenuState.Room);
-
-        characterSelectPanel.SetActive(
-            state == MainMenuState.CharacterSelect);
+        titlePanel.SetActive(state == MainMenuState.Title);
+        loginPanel.SetActive(state == MainMenuState.Login);
+        lobbyPanel.SetActive(state == MainMenuState.Lobby);
+        roomPanel.SetActive(state == MainMenuState.Room);
+        characterSelectPanel.SetActive(state == MainMenuState.CharacterSelect);
     }
 }
+
