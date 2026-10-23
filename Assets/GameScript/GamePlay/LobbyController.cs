@@ -48,12 +48,12 @@ public class LobbyController : MonoBehaviour
 
         if (!AuthHttp.TryGetUrl(apiBaseUrl, "/api/auth/me", out string url))
         {
-            SetStatus("API 주소를 확인하세요.");
+            SetStatus("Check the API URL.");
             return;
         }
 
         SetBusy(true);
-        SetStatus("계정 정보 새로고침 중...");
+        SetStatus("Refreshing account...");
         activeRoutine = StartCoroutine(RefreshProfile(url, session.AccessToken));
     }
 
@@ -92,7 +92,7 @@ public class LobbyController : MonoBehaviour
         if (!AuthHttp.TryReadJson(body, out AccountResponseDto account) ||
             !session.ApplyAccountProfile(account.user))
         {
-            SetStatus("계정 정보를 적용하지 못했습니다.");
+            SetStatus("Failed to load account data.");
             yield break;
         }
 
@@ -121,7 +121,7 @@ public class LobbyController : MonoBehaviour
 
         logoutPending = true;
         SetBusy(true);
-        SetStatus("로그아웃 중...");
+        SetStatus("LogOut...");
         activeRoutine = StartCoroutine(Logout(url, session.AccessToken));
     }
 

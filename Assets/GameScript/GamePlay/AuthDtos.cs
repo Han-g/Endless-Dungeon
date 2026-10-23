@@ -112,15 +112,15 @@ public static class AuthHttp
         }
 
         if (statusCode == 0)
-            return "서버에 연결하지 못했습니다. 서버 주소와 실행 상태를 확인하세요.";
+            return "Failed to connect to the server.";
         if (statusCode == 401)
-            return "로그인 정보가 올바르지 않거나 세션이 만료되었습니다.";
+            return "Invalid credentials or expired session.";
         if (statusCode == 429)
-            return "요청이 너무 많습니다. 잠시 후 다시 시도하세요.";
+            return "Too many requests. Please try again later.";
         if (statusCode >= 500)
-            return "서버 또는 데이터베이스를 사용할 수 없습니다. 잠시 후 다시 시도하세요.";
+            return "Service unavailable. Please try again later.";
 
-        return "요청을 처리하지 못했습니다.";
+        return "Unable to process the request.";
     }
 }
 

@@ -22,4 +22,6 @@ export class PlayerState extends Schema {
 
     // 클라이언트 예측을 나중에 추가할 때 사용
     @type("uint32") lastProcessedInput: number = 0;
+
+    @type("boolean") isReady: boolean = false;
 }

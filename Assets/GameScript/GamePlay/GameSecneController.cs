@@ -62,6 +62,11 @@ public class GameSecneController : MonoBehaviour
         Show(MainMenuState.CharacterSelect);
     }
 
+    public void OnCharacterSelectionFinished()
+    {
+        Show(MainMenuState.Room);
+    }
+
     private void Show(MainMenuState state)
     {
         CurrentState = state;
@@ -70,6 +75,18 @@ public class GameSecneController : MonoBehaviour
         lobbyPanel.SetActive(state == MainMenuState.Lobby);
         roomPanel.SetActive(state == MainMenuState.Room);
         characterSelectPanel.SetActive(state == MainMenuState.CharacterSelect);
+    }
+
+    private void Start()
+    {
+        if (
+            ClientSession.Instance != null &&
+            ClientSession.Instance.IsAuthenticated &&
+            RoomLobbyConnection.Instance != null &&
+            RoomLobbyConnection.Instance.CurrentRoom == null)
+        {
+            Show(MainMenuState.Lobby);
+        }
     }
 }
 

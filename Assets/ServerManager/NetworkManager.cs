@@ -24,20 +24,20 @@ using NetworkProjectileState =
 public class NetworkManager : MonoBehaviour
 {
     [Header("Connection")]
-    [SerializeField]
-    private string serverAddress =
-        "ws://localhost:2567";
+    //[SerializeField]
+    //private string serverAddress =
+    //    "ws://localhost:2567";
 
-    [SerializeField]
-    private string roomName = "my_room";
+    //[SerializeField]
+    //private string roomName = "my_room";
 
-    [SerializeField]
-    private string playerName = "Player";
+    //[SerializeField]
+    //private string playerName = "Player";
 
     [SerializeField]
     private bool connectOnStart = true;
 
-    private Client client;
+    //private Client client;
     private Room<NetworkRoomState> room;
 
     private StateCallbackStrategy<NetworkRoomState>
@@ -132,27 +132,21 @@ public class NetworkManager : MonoBehaviour
 
         isConnecting = true;
 
+        RoomLobbyConnection owner =
+            RoomLobbyConnection.Instance;
+
         try
         {
-            if (client == null)
+            if (
+                owner == null ||
+                !owner.TryGetGameRoom(out var existingRoom))
             {
-                client = new Client(serverAddress);
+                throw new InvalidOperationException(
+                    "START_FROM_WAITING_ROOM");
             }
 
-            int selectedCharacterId = ClientSession.Instance != null
-                ? ClientSession.Instance.SelectedCharacterId: 1;
-
-            Dictionary<string, object> options = new()
-            {
-                ["playerName"] = playerName,
-                ["characterId"] = selectedCharacterId
-            };
-
-            room =
-                await client.JoinOrCreate<
-                    NetworkRoomState>(
-                    roomName,
-                    options);
+            // 기존 roomId, sessionId, 소켓을 그대로 사용한다.
+            room = existingRoom;
 
             room.OnLeave += HandleRoomLeft;
             room.OnError += HandleRoomError;
@@ -163,25 +157,42 @@ public class NetworkManager : MonoBehaviour
                 room.RoomId,
                 room.SessionId);
 
-            Debug.Log(
-                $"방 참가 완료: {room.RoomId}, " +
-                $"Session: {room.SessionId}");
+            if (
+                room.State.game.phase == "loading" &&
+                !await owner.ReportGameLoadedAsync())
+            {
+                throw new InvalidOperationException(
+                    "GAME_LOAD_CONFIRMATION_FAILED");
+            }
         }
-        catch (Exception exception)
+        catch
         {
-            Room<NetworkRoomState> failedRoom = room;
+            var failedRoom = room;
 
             ClearRoom();
 
             if (failedRoom != null)
             {
-                await failedRoom.Leave();
+                if (
+                    owner != null &&
+                    owner.CurrentRoom == failedRoom)
+                {
+                    await owner.LeaveRoomAsync();
+                }
+                else
+                {
+                    await failedRoom.Leave();
+                }
+
+                RoomLeft?.Invoke(1006);
             }
 
-            ConnectionFailed?.Invoke(
-                exception.Message);
+            const string reason =
+                "대기방에서 전원이 준비한 뒤 게임을 시작하세요.";
 
-            Debug.LogException(exception, this);
+            ConnectionFailed?.Invoke(reason);
+
+            Debug.LogWarning(reason, this);
         }
         finally
         {
@@ -397,7 +408,20 @@ public class NetworkManager : MonoBehaviour
 
     public async Task LeaveRoomAsync()
     {
-        if (room != null)
+        var owner = RoomLobbyConnection.Instance;
+
+        if (room == null)
+        {
+            return;
+        }
+
+        if (
+            owner != null &&
+            owner.CurrentRoom == room)
+        {
+            await owner.LeaveRoomAsync();
+        }
+        else
         {
             await room.Leave();
         }
@@ -543,11 +567,24 @@ public class NetworkManager : MonoBehaviour
 
     private void OnDestroy()
     {
-        Room<NetworkRoomState> currentRoom = room;
+        var currentRoom = room;
 
         ClearRoom();
 
-        if (currentRoom != null)
+        if (currentRoom == null)
+        {
+            return;
+        }
+
+        var owner = RoomLobbyConnection.Instance;
+
+        if (
+            owner != null &&
+            owner.CurrentRoom == currentRoom)
+        {
+            _ = owner.LeaveRoomAsync();
+        }
+        else
         {
             _ = currentRoom.Leave();
         }

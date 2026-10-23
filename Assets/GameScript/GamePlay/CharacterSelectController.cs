@@ -1,6 +1,5 @@
 using TMPro;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class CharacterSelectController : MonoBehaviour
@@ -16,97 +15,275 @@ public class CharacterSelectController : MonoBehaviour
     [SerializeField]
     private Button confirmButton;
 
-    [Header("Scene")]
     [SerializeField]
-    private string gameSceneName = "GameScene";
+    private TMP_Text statusText;
+
+    [SerializeField]
+    private Button cancelButton;
+
+    [Header("Room")]
+    [SerializeField]
+    private RoomLobbyConnection connection;
+
+    [SerializeField]
+    private GameSecneController menuController;
 
     private CharacterDefinition selectedCharacter;
 
+    private bool submitting;
+    private bool subscribed;
+    private int generation;
+
     private void OnEnable()
     {
+        ++generation;
+
+        submitting = false;
         selectedCharacter = null;
+
+        if (RoomLobbyConnection.Instance != null)
+        {
+            connection = RoomLobbyConnection.Instance;
+        }
+
+        SetStatus(string.Empty);
 
         if (selectedCharacterText != null)
         {
             selectedCharacterText.text =
-                "캐릭터를 선택하세요.";
+                "Select a Character.";
         }
 
-        if (confirmButton != null)
+        if (
+            connection == null ||
+            connection.CurrentRoom == null ||
+            menuController == null)
         {
-            confirmButton.interactable = false;
+            SetStatus("Check the room connection.");
+
+            RefreshButtons();
+
+            return;
         }
+
+        connection.WaitingRoomLeft += HandleRoomLeft;
+        connection.StatusChanged += SetStatus;
+
+        subscribed = true;
+
+        var room = connection.CurrentRoom;
+
+        if (
+            room.State?.players != null &&
+            room.State.players.TryGetValue(
+                room.SessionId,
+                out var player) &&
+            player != null)
+        {
+            SelectCharacter(player.characterId);
+        }
+
+        RefreshButtons();
+    }
+
+    private void OnDisable()
+    {
+        ++generation;
+
+        if (subscribed && connection != null)
+        {
+            connection.WaitingRoomLeft -= HandleRoomLeft;
+            connection.StatusChanged -= SetStatus;
+        }
+
+        subscribed = false;
     }
 
     public void SelectCharacter(int characterId)
     {
-        selectedCharacter = FindCharacter(
-            characterId);
+        if (submitting)
+        {
+            return;
+        }
+
+        selectedCharacter = FindCharacter(characterId);
 
         if (selectedCharacter == null)
         {
-            Debug.LogError(
-                $"CharacterId {characterId}를 찾을 수 없습니다.",
-                this);
+            SetStatus("Character data is missing.");
+
+            RefreshButtons();
 
             return;
         }
 
         if (selectedCharacterText != null)
         {
+            string weapon =
+                selectedCharacter.StartingProjectile != null
+                    ? selectedCharacter.StartingProjectile.DisplayName
+                    : "None";
+
             selectedCharacterText.text =
                 $"{selectedCharacter.DisplayName}\n" +
                 $"HP: {selectedCharacter.BaseMaxHealth}\n" +
-                $"이동 속도: {selectedCharacter.BaseMoveSpeed}\n" +
-                $"공격력 배율: {selectedCharacter.DamageMultiplier}\n" +
-                $"공격 속도: {selectedCharacter.AttackSpeedBonus}\n" +
-                $"시작 무기: " +
-                $"{selectedCharacter.StartingProjectile.DisplayName}";
+                $"Move Speed: {selectedCharacter.BaseMoveSpeed}\n" +
+                $"Damage: {selectedCharacter.DamageMultiplier}\n" +
+                $"Attack Speed: {selectedCharacter.AttackSpeedBonus}\n" +
+                $"Starting Weapon: {weapon}";
         }
+
+        RefreshButtons();
+    }
+
+    public async void ConfirmCharacter()
+    {
+        if (
+            submitting ||
+            selectedCharacter == null ||
+            !CanSelect())
+        {
+            return;
+        }
+
+        int requestGeneration = generation;
+
+        var source = connection.CurrentRoom;
+
+        submitting = true;
+
+        RefreshButtons();
+
+        SetStatus("Confirming your character...");
+
+        try
+        {
+            bool accepted = await connection.SetReadyAsync(
+                true,
+                selectedCharacter.CharacterId);
+
+            if (
+                this == null ||
+                !isActiveAndEnabled ||
+                requestGeneration != generation)
+            {
+                return;
+            }
+
+            if (
+                accepted &&
+                connection.CurrentRoom == source &&
+                source.State.game.phase == "waiting")
+            {
+                menuController.OnCharacterSelectionFinished();
+            }
+        }
+        finally
+        {
+            if (
+                this != null &&
+                isActiveAndEnabled &&
+                requestGeneration == generation)
+            {
+                submitting = false;
+
+                RefreshButtons();
+            }
+        }
+    }
+
+    public void CancelSelection()
+    {
+        if (submitting || !CanSelect())
+        {
+            return;
+        }
+
+        // 선택 화면을 열기 전에 이미 준비를 취소했다.
+        menuController.OnCharacterSelectionFinished();
+    }
+
+    private bool CanSelect()
+    {
+        var room =
+            connection != null
+                ? connection.CurrentRoom
+                : null;
+
+        return
+            subscribed &&
+            room != null &&
+            room.State?.game != null &&
+            room.State.game.phase == "waiting" &&
+            !connection.IsGameTransitioning;
+    }
+
+    private void RefreshButtons()
+    {
+        bool available = !submitting && CanSelect();
 
         if (confirmButton != null)
         {
-            confirmButton.interactable = true;
+            confirmButton.interactable =
+                available && selectedCharacter != null;
+        }
+
+        if (cancelButton != null)
+        {
+            cancelButton.interactable = available;
         }
     }
 
-    public void ConfirmCharacter()
+    private void HandleRoomLeft(int code)
     {
-        if (selectedCharacter == null)
+        if (
+            !isActiveAndEnabled ||
+            menuController == null)
         {
             return;
         }
 
-        if (ClientSession.Instance == null)
+        if (
+            ClientSession.Instance != null &&
+            ClientSession.Instance.IsAuthenticated)
         {
-            Debug.LogError(
-                "ClientSession이 존재하지 않습니다.",
-                this);
-
-            return;
+            menuController.OnRoomLeft();
         }
-
-        ClientSession.Instance.SetSelectedCharacter(
-            selectedCharacter.CharacterId);
-
-        SceneManager.LoadScene(
-            gameSceneName);
+        else
+        {
+            menuController.OnLoggedOut();
+        }
     }
 
-    private CharacterDefinition FindCharacter(
-        int characterId)
+    private CharacterDefinition FindCharacter(int id)
     {
-        foreach (CharacterDefinition character
-                 in characters)
+        if (characters == null)
         {
-            if (character != null &&
-                character.CharacterId ==
-                characterId)
+            return null;
+        }
+
+        foreach (CharacterDefinition character in characters)
+        {
+            if (
+                character != null &&
+                character.CharacterId == id)
             {
                 return character;
             }
         }
 
         return null;
+    }
+
+    private void SetStatus(string message)
+    {
+        if (statusText == null)
+        {
+            return;
+        }
+
+        statusText.richText = false;
+
+        statusText.text = message ?? string.Empty;
     }
 }

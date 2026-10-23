@@ -13,6 +13,8 @@ using UnityEditor;
 [DisallowMultipleComponent]
 public sealed class GameFinishUI : MonoBehaviour
 {
+    private bool returningToLobby;
+
     [Header("References")]
     [SerializeField]
     private GameObject gameOverPanel;
@@ -121,12 +123,41 @@ public sealed class GameFinishUI : MonoBehaviour
         Cursor.lockState = CursorLockMode.None;
     }
 
-    public void RetryGame()
+    public async void RetryGame()
     {
+        if (returningToLobby)
+        {
+            return;
+        }
+
+        returningToLobby = true;
+
         Time.timeScale = 1f;
 
-        SceneManager.LoadScene(
-            SceneManager.GetActiveScene().buildIndex);
+        try
+        {
+            var owner = RoomLobbyConnection.Instance;
+
+            if (owner != null)
+            {
+                await owner.LeaveRoomAsync();
+            }
+            else if (networkManager != null)
+            {
+                await networkManager.LeaveRoomAsync();
+            }
+
+            SceneManager.LoadScene("MainMenuScene");
+        }
+        catch
+        {
+            returningToLobby = false;
+
+            Debug.LogWarning(
+                "로비로 돌아가지 못했습니다. " +
+                "씬 등록과 방 연결을 확인하세요.",
+                this);
+        }
     }
 
     public void QuitGame()

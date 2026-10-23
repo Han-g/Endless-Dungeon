@@ -54,7 +54,7 @@ public class LoginController : MonoBehaviour
             loginButton == null || menuController == null ||
             ClientSession.Instance == null)
         {
-            SetStatus("로그인 UI와 ClientSession 연결을 확인하세요.");
+            SetStatus("Check the login UI and ClientSession setup.");
             return;
         }
 
@@ -63,19 +63,19 @@ public class LoginController : MonoBehaviour
 
         if (loginId.Length == 0 || password.Length == 0)
         {
-            SetStatus("아이디와 비밀번호를 입력하세요.");
+            SetStatus("Enter your login ID and password.");
             return;
         }
 
         if (!AuthHttp.TryGetUrl(apiBaseUrl, "/api/auth/login", out string loginUrl) ||
             !AuthHttp.TryGetUrl(apiBaseUrl, "/api/auth/me", out string meUrl))
         {
-            SetStatus("API 주소를 http:// 또는 https:// 주소로 설정하세요.");
+            SetStatus("Use an HTTP or HTTPS API URL.");
             return;
         }
 
         SetBusy(true);
-        SetStatus("로그인 중...");
+        SetStatus("Login...");
         activeRoutine = StartCoroutine(Login(loginUrl, meUrl, loginId, password));
     }
 
@@ -107,11 +107,11 @@ public class LoginController : MonoBehaviour
             string.IsNullOrWhiteSpace(login.accessToken) ||
             login.expiresAt <= DateTimeOffset.UtcNow.ToUnixTimeSeconds())
         {
-            FinishWithError("로그인 응답 형식이 올바르지 않습니다.");
+            FinishWithError("Invalid login response.");
             yield break;
         }
 
-        SetStatus("계정 정보 불러오는 중...");
+        SetStatus("Loading account...");
         activeRequest = AuthHttp.CreateJsonRequest(
             meUrl, UnityWebRequest.kHttpVerbGET, token: login.accessToken);
         yield return activeRequest.SendWebRequest();
@@ -132,7 +132,7 @@ public class LoginController : MonoBehaviour
             !ClientSession.Instance.SetAuthenticated(
                 login.accessToken, login.expiresAt, account.user))
         {
-            FinishWithError("계정 정보를 적용하지 못했습니다.");
+            FinishWithError("Failed to load account data.");
             yield break;
         }
 
