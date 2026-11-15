@@ -22,6 +22,12 @@ export function createAuthRouter(getService: () => AuthService): express.Router 
         next();
     });
     router.use(express.json({ limit: "4kb", strict: true }));
+    router.post("/register", asyncRoute(async (request, response) => {
+        const user = await getService().register(
+            request.body, request.ip ?? request.socket.remoteAddress ?? "unknown"
+        );
+        response.status(201).json({ user });
+    }));
     router.post("/login", asyncRoute(async (request, response) => {
         const body = request.body as Record<string, unknown> | null;
         const result = await getService().login(

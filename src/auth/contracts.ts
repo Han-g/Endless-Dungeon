@@ -26,15 +26,21 @@ export interface SessionDocument {
 }
 
 export interface AccountStore {
+    create(account: AccountDocument): Promise<void>;
     findByLoginId(loginId: string): Promise<AccountDocument | null>;
     findByAccountId(accountId: string): Promise<AccountDocument | null>;
 }
 
 export interface SessionStore {
+    consumeRegistrationBudget(ip: string): Promise<void>;
     consumeLoginBudget(loginId: string, ip: string): Promise<void>;
     create(accountId: string): Promise<{ accessToken: string; expiresAt: number }>;
     find(accessToken: string): Promise<SessionDocument | null>;
     revoke(accessToken: string): Promise<void>;
+    revokeByKey(key: string): Promise<void>;
+    findByKey(key: string): Promise<SessionDocument | null>;
+    watch(identity: unknown, callback: () => void): Promise<() => void>;
+    isCurrent(identity: unknown): boolean;
 }
 
 export class AuthError extends Error {
@@ -88,4 +94,36 @@ export function toUserProfile(account: AccountDocument): UserProfile {
         displayName: account.displayName,
         selectedCharacterId: account.selectedCharacterId
     };
+}
+
+export interface RoomIdentity extends SessionDocument {
+    sessionKey: string;
+}
+
+export function readObject(value: unknown): Record<string, unknown> {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        throw new AuthError(400, "VALIDATION_ERROR", "JSON 객체를 보내세요.");
+    }
+    return value as Record<string, unknown>;
+}
+
+export function requireDisplayName(value: unknown): string {
+    if (typeof value !== "string") throw new AuthError(400, "VALIDATION_ERROR", "표시 이름을 입력하세요.");
+    const name = value.trim();
+    if (name.length < 1 || name.length > 24 || /[<>\u0000-\u001f\u007f]/.test(name)) {
+        throw new AuthError(400, "VALIDATION_ERROR", "표시 이름은 제어 문자 없이 1~24자로 입력하세요.");
+    }
+    return name;
+}
+
+export function readRoomIdentity(value: unknown): RoomIdentity {
+    if (typeof value !== "object" || value === null) {
+        throw new AuthError(401, "INVALID_SESSION", "다시 로그인하세요.");
+    }
+    const identity = value as Partial<RoomIdentity>;
+    if (typeof identity.accountId !== "string" || typeof identity.sessionKey !== "string" ||
+        !/^[a-f0-9]{64}$/.test(identity.sessionKey) || !Number.isSafeInteger(identity.expiresAt)) {
+        throw new AuthError(401, "INVALID_SESSION", "다시 로그인하세요.");
+    }
+    return identity as RoomIdentity;
 }

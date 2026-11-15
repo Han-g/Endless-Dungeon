@@ -1,16 +1,17 @@
-/**
- * IMPORTANT:
- * ---------
- * Do not manually edit this file if you'd like to host your server on Colyseus Cloud
- *
- * If you're self-hosting, you can see "Raw usage" from the documentation.
- * 
- * See: https://docs.colyseus.io/server
- */
 import { listen } from "@colyseus/tools";
+import { authRuntime } from "./auth/runtime.js";
 
-// Import Colyseus config
-import app from "./app.config.js";
-
-// Create and listen on 2567 (or PORT environment variable.)
-listen(app);
+async function main(): Promise<void> {
+    await authRuntime.initialize();
+    const { default: app } = await import("./app.config.js");
+    try { await listen(app); }
+    catch (error) {
+        await app.gracefullyShutdown(false);
+        throw error;
+    }
+}
+void main().catch(async (error: unknown) => {
+    console.error("[Startup] FAILED", error instanceof Error ? error.name : "Unknown");
+    await authRuntime.close();
+    process.exitCode = 1;
+});

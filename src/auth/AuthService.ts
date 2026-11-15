@@ -1,9 +1,35 @@
-import { AuthError, normalizeLoginId, requirePassword, requireAccessToken, toUserProfile } from "./contracts.js";
-import type { AccountStore, SessionStore, LoginResponse, UserProfile } from "./contracts.js";
-import { verifyPassword } from "./password.js";
+import { randomUUID } from "node:crypto";
+import { MongoServerError } from "mongodb";
+import {
+    AuthError, normalizeLoginId, requirePassword, requireAccessToken, toUserProfile,
+    readObject, requireDisplayName, readRoomIdentity
+} from "./contracts.js";
+import type { AccountStore, SessionStore, LoginResponse, UserProfile, RoomIdentity } from "./contracts.js";
+import { hashPassword, verifyPassword } from "./password.js";
+import { tokenDigest } from "./SessionRepository.js";
 
 export class AuthService {
     public constructor(private readonly accounts: AccountStore, private readonly sessions: SessionStore) {}
+
+    public async register(body: unknown, ip: string): Promise<UserProfile> {
+        const input = readObject(body);
+        const loginId = normalizeLoginId(input.loginId);
+        const password = requirePassword(input.password);
+        const displayName = requireDisplayName(input.displayName);
+        await this.sessions.consumeRegistrationBudget(ip);
+        const account = {
+            accountId: randomUUID(), loginId, displayName, passwordHash: await hashPassword(password),
+            selectedCharacterId: 1, status: "active" as const, createdAt: new Date()
+        };
+        try { await this.accounts.create(account); }
+        catch (error) {
+            if (error instanceof MongoServerError && error.code === 11000) {
+                throw new AuthError(409, "LOGIN_ID_TAKEN", "이미 사용 중인 아이디입니다.");
+            }
+            throw error;
+        }
+        return toUserProfile(account);
+    }
 
     public async login(loginIdInput: unknown, passwordInput: unknown, ip: string): Promise<LoginResponse> {
         const loginId = normalizeLoginId(loginIdInput);
@@ -19,20 +45,42 @@ export class AuthService {
         return { ...session, user };
     }
 
-    public async me(tokenInput: unknown): Promise<UserProfile> {
-        const accessToken = requireAccessToken(tokenInput);
-        const session = await this.sessions.find(accessToken);
-        if (!session) {
+    public async authenticate(tokenInput: unknown): Promise<RoomIdentity> {
+        const token = requireAccessToken(tokenInput);
+        const session = await this.sessions.find(token);
+        if (!session) throw new AuthError(401, "INVALID_SESSION", "다시 로그인하세요.");
+        const identity = { ...session, sessionKey: tokenDigest(token) };
+        await this.requireIdentity(identity);
+        return identity;
+    }
+
+    public async requireIdentity(value: unknown): Promise<UserProfile> {
+        const identity = readRoomIdentity(value);
+        const session = await this.sessions.findByKey(identity.sessionKey);
+        if (!session || session.accountId !== identity.accountId || session.expiresAt !== identity.expiresAt) {
             throw new AuthError(401, "INVALID_SESSION", "로그인이 만료되었습니다. 다시 로그인하세요.");
         }
         const account = await this.accounts.findByAccountId(session.accountId);
         if (!account || account.status !== "active") {
-            await this.sessions.revoke(accessToken);
+            await this.sessions.revokeByKey(identity.sessionKey);
             throw new AuthError(401, "INVALID_SESSION", "사용할 수 없는 계정입니다.");
         }
         return toUserProfile(account);
     }
 
+    public async me(tokenInput: unknown): Promise<UserProfile> {
+        const token = requireAccessToken(tokenInput);
+        const session = await this.sessions.find(token);
+        if (!session) throw new AuthError(401, "INVALID_SESSION", "다시 로그인하세요.");
+        return this.requireIdentity({ ...session, sessionKey: tokenDigest(token) });
+    }
+
+    public async watch(identity: unknown, onInvalid: () => void): Promise<() => void> {
+        await this.requireIdentity(identity);
+        return this.sessions.watch(identity, onInvalid);
+    }
+
+    public isCurrent(identity: unknown): boolean { return this.sessions.isCurrent(identity); }
     public async logout(tokenInput: unknown): Promise<void> {
         await this.sessions.revoke(requireAccessToken(tokenInput));
     }
