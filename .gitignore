@@ -1,0 +1,12 @@
+node_modules
+build
+.colyseus-cloud.json
+.devmode.json
+
+# Local credentials, generated files and integration backups
+.env*
+!.env.example
+.cache/
+.local-backups/
+.integration/
+*.bak
