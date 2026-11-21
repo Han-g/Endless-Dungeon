@@ -13,7 +13,6 @@ interface StoredMoveInput {
     sequence: number;
 }
 
-const PLAYER_MOVE_SPEED = 5;
 const MAX_DELTA_SECONDS = 0.1;
 const MAX_INPUT_SEQUENCE = 0xffffffff;
 
@@ -129,8 +128,8 @@ export class PlayerSystem {
                 const next = this.mapCollision.move(
                     previousX,
                     previousY,
-                    input.x * PLAYER_MOVE_SPEED * deltaSeconds,
-                    input.y * PLAYER_MOVE_SPEED * deltaSeconds
+                    input.x * player.moveSpeed * deltaSeconds,
+                    input.y * player.moveSpeed * deltaSeconds
                 );
 
                 player.x = next.x;

@@ -5,6 +5,7 @@ import {
 } from "colyseus";
 
 import { performance } from "node:perf_hooks";
+import { applyCharacterBaseStats, isCharacterId } from "../game/CharacterCatalog.js";
 
 import { ClockTimer } from "@colyseus/timer";
 
@@ -136,12 +137,10 @@ export class GameRoom extends Room<{ state: MyRoomState; }>
         const requestedCharacterId =
             Number(options?.characterId);
 
-        player.characterId =
-            Number.isInteger(requestedCharacterId) &&
-                requestedCharacterId >= 1 &&
-                requestedCharacterId <= 4
-                ? requestedCharacterId
-                : 1;
+        applyCharacterBaseStats(
+            player,
+            isCharacterId(requestedCharacterId) ? requestedCharacterId : 1
+        );
 
         player.name =
             typeof options?.playerName === "string"
@@ -154,8 +153,6 @@ export class GameRoom extends Room<{ state: MyRoomState; }>
         player.velocityX = 0;
         player.velocityY = 0;
 
-        player.hp = 100;
-        player.maxHp = 100;
         player.alive = true;
 
         // 게임 시작 버튼을 눌렀을 때 전환하게 수정

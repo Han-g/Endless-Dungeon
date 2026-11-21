@@ -15,6 +15,7 @@ import { tokenDigest } from "../src/auth/SessionRepository.js";
 import { AuthError } from "../src/auth/contracts.js";
 import { authRuntime } from "../src/auth/runtime.js";
 import type { WaitingRoom } from "../src/rooms/WaitingRoom.js";
+import { CHARACTER_DEFINITIONS } from "../src/game/CharacterCatalog.js";
 
 interface Result { requestId: string; ok: boolean; error: string; }
 const password = "Integration!Password123";
@@ -254,6 +255,48 @@ describe("WSL 인증 HTTP · 실제 MongoDB/Redis · 대기방 WebSocket", funct
         await assert.rejects(client().joinOrCreate("lobby"));
         await assert.rejects(client().create("waiting_room"));
         await assert.rejects(client(tokens[0]).joinOrCreate("my_room"));
+    });
+
+    it("기본 능력치 목록과 입장·캐릭터 선택 결과를 실제 소켓으로 전송한다", async () => {
+        const { host, guest, room } = await pair();
+        await eventually(() => host.state?.characterCatalog?.size === 4 &&
+            host.state?.players?.get(host.sessionId)?.characterId === 3,
+            "초기 능력치 상태 미수신");
+        const close = (actual: number, expected: number) => {
+            assert.ok(Math.abs(actual - expected) < 0.00001, `${actual} != ${expected}`);
+        };
+        const initial = host.state.players.get(host.sessionId);
+        assert.equal(initial.hp, 120);
+        assert.equal(initial.maxHp, 120);
+        close(initial.moveSpeed, 6);
+        for (const definition of CHARACTER_DEFINITIONS) {
+            const stats = host.state.characterCatalog.get(String(definition.id));
+            assert.equal(stats.maxHp, definition.maxHp);
+            close(stats.moveSpeed, definition.moveSpeed);
+            assert.equal(stats.damage, definition.weapon.damage);
+            close(stats.attacksPerSecond, definition.weapon.attacksPerSecond);
+            close(stats.projectileSpeed, definition.weapon.speed);
+            close(stats.range, definition.weapon.range);
+            assert.equal(stats.maxHitCount, definition.weapon.maxHitCount);
+            assert.equal(stats.projectileTypeId, definition.weapon.projectileTypeId);
+        }
+        // 클라이언트가 보낸 수치를 무시하고 서버가 캐릭터 ID로 능력치를 결정합니다.
+        assert.equal((await command(guest, "room/ready", {
+            ready: true, characterId: 1, hp: 99999, moveSpeed: 99999
+        })).ok, true);
+        await eventually(() => host.state.players.get(guest.sessionId)?.isReady === true,
+            "준비 후 능력치 미수신");
+        const remote = host.state.players.get(guest.sessionId);
+        assert.equal(remote.hp, 150);
+        assert.equal(remote.maxHp, 150);
+        close(remote.moveSpeed, 3.5);
+        assert.equal((await command(guest, "room/character", { characterId: 4 })).ok, true);
+        await eventually(() => host.state.players.get(guest.sessionId)?.characterId === 4,
+            "변경된 능력치 미수신");
+        assert.equal(remote.hp, 100);
+        close(remote.moveSpeed, 3.6);
+        assert.equal(remote.isReady, false);
+        assert.equal(room.state.players.get(guest.sessionId)?.maxHp, 100);
     });
 
     it("Ready·캐릭터 변경·방장 권한·로딩 장벽·입력 제한을 적용한다", async () => {

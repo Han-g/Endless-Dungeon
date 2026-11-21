@@ -7,6 +7,8 @@ import { MyRoomState } from "./schema/MyRoomState.js";
 import { PlayerState } from "./schema/PlayerState.js";
 import { GameSimulation } from "../simulation/GameSimulation.js";
 import { ReadyRules, type RoomFailure } from "./ReadyRules.js";
+import { CHARACTER_DEFINITIONS, applyCharacterBaseStats } from "../game/CharacterCatalog.js";
+import { CharacterStatsState } from "./schema/CharacterStatsState.js";
 
 interface WaitingRoomMetadata {
     title: string;
@@ -110,6 +112,18 @@ export class WaitingRoom extends Room<{
         this.roomTitle = readTitle(options);
         this.state.maxPlayers = this.maxClients;
         this.state.game.phase = "waiting";
+        for (const definition of CHARACTER_DEFINITIONS) {
+            const stats = new CharacterStatsState();
+            stats.maxHp = definition.maxHp;
+            stats.moveSpeed = definition.moveSpeed;
+            stats.damage = definition.weapon.damage;
+            stats.attacksPerSecond = definition.weapon.attacksPerSecond;
+            stats.projectileSpeed = definition.weapon.speed;
+            stats.range = definition.weapon.range;
+            stats.maxHitCount = definition.weapon.maxHitCount;
+            stats.projectileTypeId = definition.weapon.projectileTypeId;
+            this.state.characterCatalog.set(String(definition.id), stats);
+        }
         // onCreate의 초기 설정에서는 metadata setter를 사용할 수 있습니다.
         this.metadata = { title: this.roomTitle, phase: "waiting" };
         this.rules = new ReadyRules(this.state);
@@ -141,7 +155,7 @@ export class WaitingRoom extends Room<{
             }
             const player = new PlayerState();
             player.name = user.displayName;
-            player.characterId = user.selectedCharacterId;
+            applyCharacterBaseStats(player, user.selectedCharacterId);
             player.isReady = false;
             player.x = point.x;
             player.y = point.y;

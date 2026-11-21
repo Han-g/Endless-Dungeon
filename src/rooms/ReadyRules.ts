@@ -1,5 +1,8 @@
-export interface ReadyPlayer {
-    characterId: number;
+import {
+    applyCharacterBaseStats, isCharacterId, type CharacterBaseStatsTarget
+} from "../game/CharacterCatalog.js";
+
+export interface ReadyPlayer extends CharacterBaseStatsTarget {
     isReady: boolean;
 }
 
@@ -64,7 +67,7 @@ export class ReadyRules {
 
         // 준비 완료일 때 캐릭터와 준비 상태를 함께 적용한다.
         if (ready) {
-            player.characterId = characterId as number;
+            applyCharacterBaseStats(player, characterId as number);
         }
 
         player.isReady = ready;
@@ -90,7 +93,7 @@ export class ReadyRules {
             return "INVALID_CHARACTER";
         }
 
-        player.characterId = characterId;
+        applyCharacterBaseStats(player, characterId);
 
         // 캐릭터를 변경했다면 다시 준비해야 한다.
         player.isReady = false;
@@ -190,11 +193,6 @@ export class ReadyRules {
     }
 
     private validCharacter(value: unknown): value is number {
-        return (
-            typeof value === "number" &&
-            Number.isInteger(value) &&
-            value >= 1 &&
-            value <= 4
-        );
+        return isCharacterId(value);
     }
 }

@@ -1,6 +1,9 @@
 import { MyRoomState } from "../rooms/schema/MyRoomState.js";
 
 import { ProjectileState } from "../rooms/schema/ProjectileState.js";
+import { getCharacterDefinition, type ProjectileConfig } from "../game/CharacterCatalog.js";
+
+import type { PlayerState } from "../rooms/schema/PlayerState.js";
 
 interface AttackInputMessage {
     aimX: number;
@@ -25,80 +28,6 @@ interface RuntimeProjectile {
 
     hitEnemyIds: Set<string>;
 }
-
-interface ProjectileConfig {
-    projectileTypeId: number;
-    attacksPerSecond: number;
-    speed: number;
-    range: number;
-    damage: number;
-    spawnDistance: number;
-    originOffsetY: number;
-    hitRadius: number;
-
-    maxHitCount: number;
-}
-
-const PROJECTILE_CONFIGS:
-    ReadonlyMap<number, ProjectileConfig> =
-    new Map<number, ProjectileConfig>([
-        [
-            1,
-            {
-                projectileTypeId: 1,
-                attacksPerSecond: 0.7,
-                speed: 12,
-                range: 8,
-                damage: 15,
-                spawnDistance: 0.3,
-                originOffsetY: 0.5,
-                hitRadius: 0.25,
-                maxHitCount: 2
-            }
-        ],
-        [
-            2,
-            {
-                projectileTypeId: 2,
-                attacksPerSecond: 1.0,
-                speed: 14,
-                range: 10,
-                damage: 10,
-                spawnDistance: 0.3,
-                originOffsetY: 0.5,
-                hitRadius: 0.25,
-                maxHitCount: 1
-            }
-        ],
-        [
-            3,
-            {
-                projectileTypeId: 3,
-                attacksPerSecond: 0.8,
-                speed: 13,
-                range: 7,
-                damage: 12,
-                spawnDistance: 0.3,
-                originOffsetY: 0.5,
-                hitRadius: 0.25,
-                maxHitCount: 2
-            }
-        ],
-        [
-            4,
-            {
-                projectileTypeId: 4,
-                attacksPerSecond: 0.5,
-                speed: 10,
-                range: 9,
-                damage: 20,
-                spawnDistance: 0.3,
-                originOffsetY: 0.5,
-                hitRadius: 0.25,
-                maxHitCount: 3
-            }
-        ]
-    ]);
 
 const MAX_PROJECTILES = 512;
 const MAX_DELTA_SECONDS = 0.1;
@@ -213,17 +142,6 @@ export class ProjectileSystem {
                     return;
                 }
 
-                // 이 플레이어가 선택한 캐릭터의
-                // 투사체 설정을 가져온다.
-                const config =
-                    PROJECTILE_CONFIGS.get(
-                        player.characterId) ??
-                    PROJECTILE_CONFIGS.get(1)!;
-
-                const levelPierceBonus =
-                    getLevelPierceBonus(
-                        player.level);
-
                 const aim =
                     this.aimInputs.get(sessionId);
 
@@ -242,19 +160,13 @@ export class ProjectileSystem {
                     return;
                 }
 
-                this.createProjectile(
-                    sessionId,
-                    player.x,
-                    player.y,
-                    aim,
-                    config,
-                    levelPierceBonus
-                );
+                const weapon = getCharacterDefinition(player.characterId).weapon;
+                this.createProjectile(sessionId, player, aim, weapon);
 
                 this.nextFireTimes.set(
                     sessionId,
                     this.elapsedSeconds +
-                    1 / config.attacksPerSecond
+                    1 / weapon.attacksPerSecond
                 );
             }
         );
@@ -262,11 +174,9 @@ export class ProjectileSystem {
 
     private createProjectile(
         ownerSessionId: string,
-        playerX: number,
-        playerY: number,
+        player: PlayerState,
         aim: StoredAimInput,
-        config: ProjectileConfig,
-        levelPierceBonus: number
+        config: ProjectileConfig
     ): void {
         const projectileId =
             `projectile-${this.nextProjectileId++}`;
@@ -289,9 +199,9 @@ export class ProjectileSystem {
             aim.y;
 
         // 플레이어 중심에서 조금 떨어진 위치에 생성
-        const originX = playerX;
+        const originX = player.x;
         const originY =
-            playerY + config.originOffsetY;
+            player.y + config.originOffsetY;
 
         projectile.x =
             originX +
@@ -320,7 +230,7 @@ export class ProjectileSystem {
                 previousY: projectile.y,
 
                 hitRadius: config.hitRadius,
-                remainingHitCount: Math.max(1, config.maxHitCount + levelPierceBonus),
+                remainingHitCount: Math.max(1, config.maxHitCount + getLevelPierceBonus(player.level)),
 
                 hitEnemyIds: new Set<string>()
             }

@@ -1,4 +1,7 @@
 import { Schema, type } from "@colyseus/schema";
+import { getCharacterDefinition } from "../../game/CharacterCatalog.js";
+
+const DEFAULT_CHARACTER = getCharacterDefinition(1);
 
 export class PlayerState extends Schema {
     @type("string") name: string = "";
@@ -15,8 +18,8 @@ export class PlayerState extends Schema {
     @type("float32") velocityX: number = 0;
     @type("float32") velocityY: number = 0;
 
-    @type("int32") hp: number = 100;
-    @type("int32") maxHp: number = 100;
+    @type("int32") hp: number = DEFAULT_CHARACTER.maxHp;
+    @type("int32") maxHp: number = DEFAULT_CHARACTER.maxHp;
 
     @type("boolean") alive: boolean = true;
 
@@ -24,4 +27,6 @@ export class PlayerState extends Schema {
     @type("uint32") lastProcessedInput: number = 0;
 
     @type("boolean") isReady: boolean = false;
+
+    @type("float32") moveSpeed: number = DEFAULT_CHARACTER.moveSpeed;
 }

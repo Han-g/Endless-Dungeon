@@ -8,6 +8,7 @@ import { GameState } from "./GameState.js";
 import { PlayerState } from "./PlayerState.js";
 import { EnemyState } from "./EnemyState.js";
 import { ProjectileState } from "./ProjectileState.js";
+import { CharacterStatsState } from "./CharacterStatsState.js";
 
 export class MyRoomState extends Schema {
     @type("string")
@@ -33,4 +34,8 @@ export class MyRoomState extends Schema {
     @type({ map: ProjectileState })
     projectiles: MapSchema<ProjectileState> =
         new MapSchema<ProjectileState>();
+
+    @type({ map: CharacterStatsState })
+    characterCatalog: MapSchema<CharacterStatsState> =
+        new MapSchema<CharacterStatsState>();
 }

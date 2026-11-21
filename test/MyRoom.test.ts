@@ -1,10 +1,17 @@
 import assert from "node:assert/strict";
+import { PlayerState } from "../src/rooms/schema/PlayerState.js";
+import { applyCharacterBaseStats } from "../src/game/CharacterCatalog.js";
 import { ReadyRules, type ReadyState } from "../src/rooms/ReadyRules.js";
 
 function fixture() {
+    const makePlayer = (characterId: number) => {
+        const player = new PlayerState();
+        applyCharacterBaseStats(player, characterId);
+        return player;
+    };
     const players = new Map([
-        ["host", { characterId: 1, isReady: false }],
-        ["guest", { characterId: 2, isReady: false }]
+        ["host", makePlayer(1)],
+        ["guest", makePlayer(2)]
     ]);
     const state: ReadyState = {
         game: { phase: "waiting" }, hostSessionId: "host", players

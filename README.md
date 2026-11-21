@@ -79,7 +79,26 @@ Redis에 토큰 원문 대신 SHA-256 키를 저장합니다. 계정별 최신 �
 - my_room 우회 진입은 등록에서 제거했습니다.
 
 명령은 room/ready, room/character, room/start, game/loaded를 사용하며 requestId는 소문자 16진수 32자입니다.
-응답은 room/result의 `{ requestId, ok, error }`입니다. 기존 Unity DTO와 Schema를 유지합니다.
+응답은 room/result의 `{ requestId, ok, error }`입니다. 인증 DTO는 유지하며 캐릭터 능력치용 Schema를 확장했습니다.
+
+## 캐릭터 기본 능력치
+
+기준표는 `src/game/CharacterCatalog.ts` 한 곳에서 관리합니다.
+방 입장·캐릭터 변경·준비 완료 시 기본 체력과 이동속도를 플레이어에 적용하고,
+서버 이동은 `PlayerState.moveSpeed`, 투사체는 기준표의 공격 설정을 사용합니다.
+초당 공격 횟수와 1회 적중 피해량은 배율이 아닌 실제 기본값입니다.
+
+| ID | 캐릭터 | 최대 체력 | 이동속도 | 적중 피해량 | 초당 공격 | 투사체 속도 | 사거리 | 기본 최대 적중 수 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 전사 | 150 | 3.5 | 15 | 0.7 | 12 | 8 | 2 |
+| 2 | 궁수 | 100 | 5 | 10 | 1 | 14 | 10 | 1 |
+| 3 | 도적 | 120 | 6 | 12 | 0.8 | 13 | 7 | 2 |
+| 4 | 마법사 | 100 | 3.6 | 20 | 0.5 | 10 | 9 | 3 |
+
+`MyRoomState.characterCatalog`는 캐릭터 ID 문자열을 키로 기본 능력치를 전달합니다.
+Unity 선택 화면은 이 목록을, 대기방 참가자 표시는 실제 `PlayerState.maxHp/moveSpeed`를 읽습니다.
+기준표가 아직 도착하지 않았으면 선택 확정을 비활성화합니다.
+Unity의 캐릭터 ScriptableObject는 ID·이름·무기 리소스만 보유합니다.
 
 ## 테스트
 
@@ -91,7 +110,7 @@ npm test
 npm run build
 ```
 
-규칙 테스트 4개, HTTP·MongoDB·Redis·WebSocket 통합 테스트 23개입니다.
+대기방·능력치·성장 단위 테스트와 HTTP·MongoDB·Redis·WebSocket 통합 테스트를 실행합니다.
 테스트에는 `redis-server` 실행 파일이 필요합니다. 현재 WSL의 기존 서비스와 다른 임시 포트로 별도 프로세스를 띄웁니다.
 MongoDB 7.0.24 실행 파일은 처음에 `.cache/mongodb`로 다운로드하며 이후 재사용합니다.
 
@@ -121,6 +140,6 @@ PM2 설정은 단일 fork 프로세스이며 production에서는 monitor와 play
 
 세션이 Redis에 있어도 게임방 점유와 게임 상태는 프로세스 메모리입니다.
 다중 게임 서버 운영에는 공유 점유 및 Colyseus의 분산 구성과 복구 정책이 추가로 필요합니다.
-캐릭터 선택의 계정 저장, 경험치·레벨·스탯 성장, 인벤토리 저장은 다음 구현 범위입니다.
+캐릭터 선택·성장 기록의 계정 저장과 인벤토리 저장은 다음 구현 범위입니다.
 
 구현 및 복구 기록은 `docs/WSL_AUTH_WAITING_ROOM_INTEGRATION.md`에 있습니다.
