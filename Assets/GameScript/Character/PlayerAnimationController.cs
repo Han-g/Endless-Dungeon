@@ -20,7 +20,12 @@ public class PlayerAnimationController : MonoBehaviour
     [SerializeField, Min(0f)]
     private float movingThreshold = 0.05f;
 
+    [SerializeField] private CharacterDefinition[] characters;
+    [SerializeField] private SpriteRenderer equippedWeapon;
+
     private Animator animator;
+    private SpriteRenderer bodyRenderer;
+    private int appliedCharacterId = -1;
     private Rigidbody2D playerBody;
 
     private NetworkPlayerView networkPlayerView;
@@ -35,6 +40,7 @@ public class PlayerAnimationController : MonoBehaviour
     private void Awake()
     {
         animator = GetComponent<Animator>();
+        bodyRenderer = GetComponent<SpriteRenderer>();
         playerBody = GetComponentInParent<Rigidbody2D>();
 
         networkPlayerView = GetComponentInParent<NetworkPlayerView>();
@@ -50,7 +56,41 @@ public class PlayerAnimationController : MonoBehaviour
         }
     }
 
-    // Update is called once per frame
+    public void ApplyAppearance(int characterId)
+    {
+        if (appliedCharacterId == characterId)
+            return;
+
+        appliedCharacterId = characterId;
+        foreach (var character in characters)
+        {
+            if (character == null || character.CharacterId != characterId)
+                continue;
+
+            animator.runtimeAnimatorController = character.AnimationController;
+            bodyRenderer.sprite = character.IdleSprite;
+            var weapon = character.StartingProjectile;
+            equippedWeapon.sprite = weapon != null ? weapon.EquippedSprite : null;
+            UpdateWeapon(lastIdleDirection, true);
+            return;
+        }
+
+        Debug.LogWarning($"Unknown character appearance: {characterId}", this);
+    }
+
+    private void UpdateWeapon(Vector2 facing, bool alive)
+    {
+        equippedWeapon.enabled = alive && equippedWeapon.sprite != null;
+        if (!equippedWeapon.enabled)
+            return;
+
+        bool facingLeft = facing.x < 0f;
+        equippedWeapon.flipX = !facingLeft;
+        equippedWeapon.transform.localPosition =
+            new Vector3(facingLeft ? -0.38f : 0.38f, 0.42f, 0f);
+        equippedWeapon.sortingOrder = bodyRenderer.sortingOrder + (facing.y > 0f ? -1 : 1);
+    }
+
     void Update()
     {
         if (networkPlayerView != null)
@@ -69,6 +109,7 @@ public class PlayerAnimationController : MonoBehaviour
             if (isDead)
             {
                 animator.SetBool(IsMovingHash, false);
+                UpdateWeapon(lastIdleDirection, false);
 
                 // 사망 중에는 이동 애니메이션을 갱신하지 않습니다.
                 return;
@@ -126,6 +167,7 @@ public class PlayerAnimationController : MonoBehaviour
         animator.SetFloat(MoveXHash, animatorDirection.x);
         animator.SetFloat(MoveYHash, animatorDirection.y);
         animator.SetBool(IsMovingHash, isMoving);
+        UpdateWeapon(animatorDirection, true);
     }
 
     private static Vector2 ConvertToEightDirections(Vector2 direction)

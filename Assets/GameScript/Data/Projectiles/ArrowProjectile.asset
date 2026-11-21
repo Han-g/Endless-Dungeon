@@ -15,6 +15,8 @@ MonoBehaviour:
   projectileId: 2
   displayName: Arrow
   prefab: {fileID: 6544642362037372585, guid: f7eef57f588af494dbcfff5731dcfe0d, type: 3}
+  weaponName: Bow
+  equippedSprite: {fileID: -415446080585258355, guid: bcb232bb19dc62046b5716d57f094e11, type: 3}
   projectileSprite: {fileID: -68039761738473402, guid: 932ddca398d74a54aaae223ae3bf697c, type: 3}
   projectileScale: 0.7
   baseDamage: 10

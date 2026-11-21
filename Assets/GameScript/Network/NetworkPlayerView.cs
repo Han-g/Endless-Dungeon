@@ -27,6 +27,7 @@ public sealed class NetworkPlayerView : MonoBehaviour
     private NetworkAimInputSender aimInputSender;
 
     private PlayerOutline playerOutline;
+    private PlayerAnimationController playerAnimation;
 
     private Vector2 targetPosition;
     private bool initialized;
@@ -76,6 +77,7 @@ public sealed class NetworkPlayerView : MonoBehaviour
         characterMove = GetComponent<CharacterMove>();
         aimInputSender = GetComponent<NetworkAimInputSender>();
         playerOutline = GetComponentInChildren<PlayerOutline>(true);
+        playerAnimation = GetComponentInChildren<PlayerAnimationController>(true);
     }
 
     public void Initialize(
@@ -148,6 +150,8 @@ public sealed class NetworkPlayerView : MonoBehaviour
         CurrentHp = state.hp;
         MaxHp = state.maxHp;
         IsAlive = state.alive;
+        if (playerAnimation != null)
+            playerAnimation.ApplyAppearance(state.characterId);
 
         NetworkVelocity = IsAlive ? new Vector2(
             state.velocityX,

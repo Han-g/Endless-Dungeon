@@ -12,6 +12,9 @@ public class ProjectileDefinition : ScriptableObject
     [SerializeField]
     private string displayName;
 
+    [SerializeField] private string weaponName;
+    [SerializeField] private Sprite equippedSprite;
+
     [SerializeField]
     private Sprite projectileSprite;
 
@@ -39,6 +42,8 @@ public class ProjectileDefinition : ScriptableObject
 
     public int ProjectileId => projectileId;
     public string DisplayName => displayName;
+    public string WeaponName => weaponName;
+    public Sprite EquippedSprite => equippedSprite;
     public Sprite ProjectileSprite => projectileSprite;
     public float ProjectileScale => projectileScale;
 

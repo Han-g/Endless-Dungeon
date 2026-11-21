@@ -15,6 +15,8 @@ MonoBehaviour:
   projectileId: 3
   displayName: Dagger
   prefab: {fileID: 6544642362037372585, guid: f7eef57f588af494dbcfff5731dcfe0d, type: 3}
+  weaponName: Dagger
+  equippedSprite: {fileID: 761100573506273824, guid: 6aa3229ba68d8df4dbfd261d6eeb0efc, type: 3}
   projectileSprite: {fileID: 7401665434839556812, guid: 932ddca398d74a54aaae223ae3bf697c, type: 3}
   projectileScale: 0.8
   baseDamage: 10

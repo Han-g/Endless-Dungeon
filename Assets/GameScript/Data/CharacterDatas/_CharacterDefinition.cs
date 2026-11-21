@@ -30,6 +30,10 @@ public class CharacterDefinition : ScriptableObject
     [SerializeField, Min(0.1f)]
     private float rangeMultiplier = 1f;
 
+    [Header("Appearance")]
+    [SerializeField] private Sprite idleSprite;
+    [SerializeField] private AnimatorOverrideController animationController;
+
     [Header("Starting Weapon")]
     [SerializeField]
     private ProjectileDefinition startingProjectile;
@@ -49,6 +53,9 @@ public class CharacterDefinition : ScriptableObject
 
     public float RangeMultiplier =>
         rangeMultiplier;
+
+    public Sprite IdleSprite => idleSprite;
+    public AnimatorOverrideController AnimationController => animationController;
 
     public ProjectileDefinition StartingProjectile =>
         startingProjectile;

@@ -20,4 +20,6 @@ MonoBehaviour:
   attackSpeedBonus: 1.5
   projectileSpeedMultiplier: 1
   rangeMultiplier: 1
+  idleSprite: {fileID: 7813514837407158146, guid: 259e4f40f64a0794b9f0e05782b385c7, type: 3}
+  animationController: {fileID: 22100000, guid: 68c6241c672da024797b7343bfb19c13, type: 2}
   startingProjectile: {fileID: 11400000, guid: 8f4e9cddd5e506842a0107aec51d4711, type: 2}
