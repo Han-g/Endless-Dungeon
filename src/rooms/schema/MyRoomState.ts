@@ -1,5 +1,6 @@
 import {
     Schema,
+    ArraySchema,
     MapSchema,
     type
 } from "@colyseus/schema";
@@ -9,6 +10,8 @@ import { PlayerState } from "./PlayerState.js";
 import { EnemyState } from "./EnemyState.js";
 import { ProjectileState } from "./ProjectileState.js";
 import { CharacterStatsState } from "./CharacterStatsState.js";
+
+import { TraitDefinitionState } from "./TraitDefinitionState.js";
 
 export class MyRoomState extends Schema {
     @type("string")
@@ -38,4 +41,7 @@ export class MyRoomState extends Schema {
     @type({ map: CharacterStatsState })
     characterCatalog: MapSchema<CharacterStatsState> =
         new MapSchema<CharacterStatsState>();
+
+    @type("uint32") nextTraitKills: number = 0;
+    @type([TraitDefinitionState]) traitCatalog = new ArraySchema<TraitDefinitionState>();
 }

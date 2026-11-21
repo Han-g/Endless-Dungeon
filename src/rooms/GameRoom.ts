@@ -42,6 +42,9 @@ export class GameRoom extends Room<{ state: MyRoomState; }>
     private simulation!: GameSimulation;
 
     public messages = {
+        "trait/choose": (client: Client, message: unknown) => {
+            this.simulation.teamTraits.choose(client.sessionId, message);
+        },
         "input/move": (
             client: Client,
             message: unknown

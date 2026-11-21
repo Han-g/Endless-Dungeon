@@ -311,6 +311,7 @@ describe("WSL 인증 HTTP · 실제 MongoDB/Redis · 대기방 WebSocket", funct
         const gain = GAINS_PER_LEVEL[shooter.characterId];
         const startXp = Math.max(0, LEVEL_XP[1] - XP_PER_KILL);
         shooter.experience = startXp;
+        room.state.game.killCount = 9;
         const startKills = shooter.killCount;
         const maxHp = shooter.maxHp;
         const enemy = new EnemyState();
@@ -328,7 +329,19 @@ describe("WSL 인증 HTTP · 실제 MongoDB/Redis · 대기방 WebSocket", funct
         assert.equal(result.maxHp, maxHp + gain.maxHp);
         assert.equal(result.damage, weapon.damage + gain.damage);
         assert.ok(Math.abs(result.attacksPerSecond - (weapon.attacksPerSecond + gain.attacksPerSecond)) < 0.00001);
-        assert.equal(guest.state.game.killCount, 1);
+        assert.equal(guest.state.game.killCount, 10);
+        await eventually(() => host.state.players.get(host.sessionId)?.traitDeadline > 0 &&
+            guest.state.players.get(guest.sessionId)?.traitDeadline > 0, "team choices not received");
+        assert.equal(guest.state.traitCatalog.length, 3);
+        assert.equal(guest.state.nextTraitKills, 25);
+        const offerId = guest.state.players.get(guest.sessionId).traitOfferId;
+        guest.send("trait/choose", { offerId, traitId: "kill_heal", sessionId: host.sessionId });
+        guest.send("trait/choose", { offerId, traitId: "kill_heal" });
+        host.send("trait/choose", { offerId, traitId: "hurt_grace" });
+        await eventually(() => guest.state.players.get(host.sessionId)?.lastTraitId === "hurt_grace" &&
+            guest.state.players.get(guest.sessionId)?.lastTraitId === "kill_heal", "trait picks not synchronized");
+        assert.equal(guest.state.players.get(guest.sessionId).traitRanks.get("kill_heal"), 1);
+        assert.equal(guest.state.players.get(host.sessionId).traitRanks.has("kill_heal"), false);
         assert.equal(guest.state.players.get(guest.sessionId).experience, 0);
         assert.equal(guest.state.enemies.has("growth-target"), false);
     });

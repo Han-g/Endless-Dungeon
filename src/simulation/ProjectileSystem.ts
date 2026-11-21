@@ -1,3 +1,4 @@
+import { extraTraitHits } from "../game/TeamTraits.js";
 import { MyRoomState } from "../rooms/schema/MyRoomState.js";
 
 import { ProjectileState } from "../rooms/schema/ProjectileState.js";
@@ -212,7 +213,7 @@ export class ProjectileSystem {
                 previousY: projectile.y,
 
                 hitRadius: config.hitRadius,
-                remainingHitCount: Math.max(1, config.maxHitCount + player.bonusProjectileHits),
+                remainingHitCount: Math.max(1, config.maxHitCount + player.bonusProjectileHits + extraTraitHits(player)),
 
                 hitEnemyIds: new Set<string>()
             }

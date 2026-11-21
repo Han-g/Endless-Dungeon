@@ -98,6 +98,9 @@ export class WaitingRoom extends Room<{
             this.command(client, "game/loaded", message, () =>
                 this.rules.reportLoaded(client.sessionId));
         },
+        "trait/choose": (client: Client, message: unknown): void => {
+            if (this.isAuthorized(client)) this.simulation.teamTraits.choose(client.sessionId, message);
+        },
         "input/move": (client: Client, message: unknown): void => {
             if (!this.isAuthorized(client) || this.state.game.phase !== "playing") return;
             this.simulation.playerSystem.setMoveInput(client.sessionId, message);

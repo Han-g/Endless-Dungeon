@@ -4,6 +4,7 @@ import { EnemySystem } from "./EnemySystem.js";
 
 import { ProjectileSystem } from "./ProjectileSystem.js";
 
+import { healOnKill, extraHurtGrace } from "../game/TeamTraits.js";
 import { rewardMonsterKill } from "../game/CharacterGrowth.js";
 
 const MAX_DELTA_SECONDS = 0.1;
@@ -191,6 +192,7 @@ export class CombatSystem {
 
             if (owner !== undefined) {
                 rewardMonsterKill(owner);
+                healOnKill(owner);
             }
         }
     }
@@ -262,7 +264,7 @@ export class CombatSystem {
 
                 this.nextPlayerDamageTimes.set(
                     sessionId,
-                    now + PLAYER_HURT_INVULNERABILITY_SECONDS
+                    now + PLAYER_HURT_INVULNERABILITY_SECONDS + extraHurtGrace(player)
                 );
 
                 if (targetTimes === undefined) {

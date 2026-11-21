@@ -10,7 +10,10 @@ import { CombatSystem } from "./CombatSystem.js";
 
 import { MapCollision } from "./MapCollision.js";
 
+import { TeamTraits } from "../game/TeamTraits.js";
+
 export class GameSimulation {
+    public readonly teamTraits: TeamTraits;
     public readonly playerSystem: PlayerSystem;
     public readonly projectileSystem: ProjectileSystem;
     public readonly enemySystem: EnemySystem;
@@ -18,6 +21,7 @@ export class GameSimulation {
     public readonly mapCollision: MapCollision;
 
     public constructor(private readonly state: MyRoomState) {
+        this.teamTraits = new TeamTraits(state);
         this.mapCollision = new MapCollision();
 
         this.playerSystem = new PlayerSystem(
@@ -49,6 +53,7 @@ export class GameSimulation {
 
         // 마지막 생존자가 퇴장한 경우도 처리합니다.
         if (this.finishIfAllPlayersDead()) {
+            this.teamTraits.update();
             return;
         }
 
@@ -74,6 +79,7 @@ export class GameSimulation {
 
         // 이번 틱의 피해 처리가 끝난 뒤 전원 사망을 검사합니다.
         this.finishIfAllPlayersDead();
+        this.teamTraits.update();
     }
 
     private finishIfAllPlayersDead(): boolean {

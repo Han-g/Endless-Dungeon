@@ -1,4 +1,4 @@
-import { Schema, type } from "@colyseus/schema";
+import { MapSchema, Schema, type } from "@colyseus/schema";
 import { getCharacterDefinition } from "../../game/CharacterCatalog.js";
 
 import { getLevelPierceBonus, LEVEL_XP, nextLevelExperience } from "../../game/CharacterGrowth.js";
@@ -41,4 +41,9 @@ export class PlayerState extends Schema {
 
     @type("uint32") levelStartExperience: number = LEVEL_XP[0];
     @type("uint8") bonusProjectileHits: number = getLevelPierceBonus(1);
+
+    @type("uint32") traitOfferId = 0;
+    @type("float64") traitDeadline = 0;
+    @type("string") lastTraitId = "";
+    @type({ map: "uint32" }) traitRanks = new MapSchema<number>();
 }
