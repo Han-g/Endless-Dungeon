@@ -52,7 +52,10 @@ public PlayerState() { }
 		[Type(11, "uint32")]
 		public uint lastProcessedInput = default(uint);
 
-        [Type(12, "boolean")]
-        public bool isReady = default(bool);
-    }
+		[Type(12, "boolean")]
+		public bool isReady = default(bool);
+
+		[Type(13, "float32")]
+		public float moveSpeed = default(float);
+	}
 }

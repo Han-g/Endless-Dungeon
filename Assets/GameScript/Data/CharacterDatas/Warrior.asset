@@ -14,12 +14,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CharacterDefinition
   characterId: 1
   displayName: Warrior
-  baseMaxHealth: 150
-  baseMoveSpeed: 3.5
-  damageMultiplier: 1.5
-  attackSpeedBonus: 0.7
-  projectileSpeedMultiplier: 1
-  rangeMultiplier: 1
   idleSprite: {fileID: 8849353693375037473, guid: bdd3764b6bf55564cb79f33b8f876950, type: 3}
   animationController: {fileID: 22100000, guid: af65731046f00084c9d8aa9fbe933d2d, type: 2}
   startingProjectile: {fileID: 11400000, guid: d38737fb2d1282e4a816b357850d1da7, type: 2}

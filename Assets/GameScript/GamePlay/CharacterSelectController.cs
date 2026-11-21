@@ -2,6 +2,11 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+using NetworkRoomState =
+    EndlessDungeon.Network.Generated.MyRoomState;
+using NetworkCharacterStats =
+    EndlessDungeon.Network.Generated.CharacterStatsState;
+
 public class CharacterSelectController : MonoBehaviour
 {
     [Header("Character Data")]
@@ -68,6 +73,7 @@ public class CharacterSelectController : MonoBehaviour
 
         connection.WaitingRoomLeft += HandleRoomLeft;
         connection.StatusChanged += SetStatus;
+        connection.WaitingStateChanged += HandleWaitingStateChanged;
 
         subscribed = true;
 
@@ -94,6 +100,7 @@ public class CharacterSelectController : MonoBehaviour
         {
             connection.WaitingRoomLeft -= HandleRoomLeft;
             connection.StatusChanged -= SetStatus;
+            connection.WaitingStateChanged -= HandleWaitingStateChanged;
         }
 
         subscribed = false;
@@ -111,28 +118,76 @@ public class CharacterSelectController : MonoBehaviour
         if (selectedCharacter == null)
         {
             SetStatus("Character data is missing.");
+        }
 
-            RefreshButtons();
+        RefreshSelectedCharacterText();
+        RefreshButtons();
+    }
 
+    private bool TryGetSelectedStats(out NetworkCharacterStats stats)
+    {
+        stats = null;
+        var room = connection != null ? connection.CurrentRoom : null;
+
+        return selectedCharacter != null &&
+            room?.State?.characterCatalog != null &&
+            room.State.characterCatalog.TryGetValue(
+                selectedCharacter.CharacterId.ToString(), out stats) &&
+            stats != null;
+    }
+
+    private void RefreshSelectedCharacterText()
+    {
+        if (selectedCharacterText == null)
+        {
             return;
         }
 
-        if (selectedCharacterText != null)
+        selectedCharacterText.richText = false;
+        if (selectedCharacter == null)
         {
-            string weapon =
-                selectedCharacter.StartingProjectile != null
-                    ? selectedCharacter.StartingProjectile.DisplayName
-                    : "None";
-
-            selectedCharacterText.text =
-                $"{selectedCharacter.DisplayName}\n" +
-                $"HP: {selectedCharacter.BaseMaxHealth}\n" +
-                $"Move Speed: {selectedCharacter.BaseMoveSpeed}\n" +
-                $"Damage: {selectedCharacter.DamageMultiplier}\n" +
-                $"Attack Speed: {selectedCharacter.AttackSpeedBonus}\n" +
-                $"Starting Weapon: {weapon}";
+            selectedCharacterText.text = "Select a Character.";
+            return;
         }
 
+        if (!TryGetSelectedStats(out var stats))
+        {
+            selectedCharacterText.text =
+                $"{selectedCharacter.DisplayName}\nLoading character stats...";
+            return;
+        }
+
+        string weapon = selectedCharacter.StartingProjectile != null
+            ? selectedCharacter.StartingProjectile.WeaponName
+            : "None";
+
+        selectedCharacterText.text =
+            $"{selectedCharacter.DisplayName}\n" +
+            $"HP: {stats.maxHp}\n" +
+            $"Move Speed: {stats.moveSpeed:0.##}\n" +
+            $"Damage per Hit: {stats.damage}\n" +
+            $"Attacks / Sec: {stats.attacksPerSecond:0.##}\n" +
+            $"Starting Weapon: {weapon}";
+    }
+
+    private void HandleWaitingStateChanged(NetworkRoomState state)
+    {
+        if (!isActiveAndEnabled)
+        {
+            return;
+        }
+
+        var room = connection != null ? connection.CurrentRoom : null;
+        // 초기 상태가 늦게 도착한 경우만 초기화하고, 사용자의 미리보기 선택은 유지합니다.
+        if (selectedCharacter == null && room != null &&
+            state?.players != null &&
+            state.players.TryGetValue(room.SessionId, out var player) &&
+            player != null)
+        {
+            selectedCharacter = FindCharacter(player.characterId);
+        }
+
+        RefreshSelectedCharacterText();
         RefreshButtons();
     }
 
@@ -141,7 +196,8 @@ public class CharacterSelectController : MonoBehaviour
         if (
             submitting ||
             selectedCharacter == null ||
-            !CanSelect())
+            !CanSelect() ||
+            !TryGetSelectedStats(out _))
         {
             return;
         }
@@ -225,7 +281,7 @@ public class CharacterSelectController : MonoBehaviour
         if (confirmButton != null)
         {
             confirmButton.interactable =
-                available && selectedCharacter != null;
+                available && TryGetSelectedStats(out _);
         }
 
         if (cancelButton != null)

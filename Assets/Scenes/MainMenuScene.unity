@@ -1718,7 +1718,7 @@ MonoBehaviour:
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 4
+          m_IntArgument: 2
           m_FloatArgument: 0
           m_StringArgument: 
           m_BoolArgument: 0
@@ -8061,14 +8061,26 @@ MonoBehaviour:
   - {fileID: 821138111}
   - {fileID: 78980395}
   - {fileID: 1505215981}
-  roomIdText: {fileID: 0}
+  roomIdText: {fileID: 645292426}
   statusText: {fileID: 0}
   leaveButton: {fileID: 852719859}
   readyButton: {fileID: 1172373685}
   gameStartButton: {fileID: 966993705}
   characterDropdown: {fileID: 0}
-  characters: []
-  portraits: []
+  characters:
+  - {fileID: 11400000, guid: b29fa3ca590c6e942be4420330611e8e, type: 2}
+  - {fileID: 11400000, guid: 12684a0b3f9c97f468088a3940ce1bb9, type: 2}
+  - {fileID: 11400000, guid: 73ead134944e85946833d71c9c632a94, type: 2}
+  - {fileID: 11400000, guid: d4181ee43d8dace44955d250292b70b0, type: 2}
+  portraits:
+  - characterId: 1
+    portrait: {fileID: 0}
+  - characterId: 2
+    portrait: {fileID: 0}
+  - characterId: 3
+    portrait: {fileID: 0}
+  - characterId: 4
+    portrait: {fileID: 0}
 --- !u!1 &1752704501
 GameObject:
   m_ObjectHideFlags: 0
@@ -8159,7 +8171,7 @@ MonoBehaviour:
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 2
+          m_IntArgument: 4
           m_FloatArgument: 0
           m_StringArgument: 
           m_BoolArgument: 0

@@ -14,12 +14,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CharacterDefinition
   characterId: 2
   displayName: Archer
-  baseMaxHealth: 100
-  baseMoveSpeed: 5
-  damageMultiplier: 1
-  attackSpeedBonus: 1
-  projectileSpeedMultiplier: 1
-  rangeMultiplier: 1
   idleSprite: {fileID: -3487590435242141639, guid: 4f05c0c5a023c2c498df98ed007531be, type: 3}
   animationController: {fileID: 22100000, guid: 31ef74b043773e24aa4e02db68a84b37, type: 2}
   startingProjectile: {fileID: 11400000, guid: ac610111f5a065444ba85d1f0e538729, type: 2}

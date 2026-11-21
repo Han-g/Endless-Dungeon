@@ -36,5 +36,8 @@ public MyRoomState() { }
 
 		[Type(6, "map", typeof(MapSchema<ProjectileState>))]
 		public MapSchema<ProjectileState> projectiles = null;
+
+		[Type(7, "map", typeof(MapSchema<CharacterStatsState>))]
+		public MapSchema<CharacterStatsState> characterCatalog = null;
 	}
 }

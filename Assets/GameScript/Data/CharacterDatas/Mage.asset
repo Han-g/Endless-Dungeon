@@ -14,12 +14,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CharacterDefinition
   characterId: 4
   displayName: Mage
-  baseMaxHealth: 100
-  baseMoveSpeed: 3.6
-  damageMultiplier: 2
-  attackSpeedBonus: 0.5
-  projectileSpeedMultiplier: 0.8
-  rangeMultiplier: 1
   idleSprite: {fileID: -4204768681062877811, guid: d30bd546757d1124cb09f64e193090a2, type: 3}
   animationController: {fileID: 22100000, guid: 24710337a3ea0f74dbe54df8a7c76de8, type: 2}
   startingProjectile: {fileID: 11400000, guid: 3dfeca1b08567074498f29509009d6e5, type: 2}

@@ -188,9 +188,6 @@ public sealed class RoomPanelController : MonoBehaviour
             var member = members[index];
             var player = member.Value;
 
-            var definition =
-                FindCharacter(player.characterId);
-
             slot.ShowMember(
                 player.name,
                 CharacterName(player.characterId),
@@ -200,12 +197,8 @@ public sealed class RoomPanelController : MonoBehaviour
                 room != null &&
                     member.Key == room.SessionId,
                 player.isReady,
-                definition != null
-                    ? definition.BaseMaxHealth
-                    : 0,
-                definition != null
-                    ? definition.BaseMoveSpeed
-                    : 0f);
+                player.maxHp,
+                player.moveSpeed);
         }
 
         RefreshInteraction();
@@ -472,22 +465,17 @@ public sealed class RoomPanelController : MonoBehaviour
 
     private Sprite FindPortrait(int id)
     {
-        if (portraits == null)
+        if (portraits != null)
         {
-            return null;
-        }
-
-        foreach (var entry in portraits)
-        {
-            if (
-                entry != null &&
-                entry.characterId == id)
+            foreach (var entry in portraits)
             {
-                return entry.portrait;
+                if (entry != null && entry.characterId == id && entry.portrait != null)
+                    return entry.portrait;
             }
         }
 
-        return null;
+        var character = FindCharacter(id);
+        return character != null ? character.IdleSprite : null;
     }
 
     private void ClearSlots()
