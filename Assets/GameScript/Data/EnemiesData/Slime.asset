@@ -25,4 +25,4 @@ MonoBehaviour:
   moveSpeed: 2
   separationRadius: 0.8
   attackRadius: 1.2
-  maxHealth: 10
+  maxHealth: 30

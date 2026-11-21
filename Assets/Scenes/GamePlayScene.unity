@@ -3090,6 +3090,7 @@ MonoBehaviour:
   enemyContainer: {fileID: 3159907633107230110}
   enemyDefinitions:
   - {fileID: 11400000, guid: 825a16c231270824aae144acec471e57, type: 2}
+  - {fileID: 11400000, guid: fc76ffb21a9149eabdce16f04ba15acc, type: 2}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
