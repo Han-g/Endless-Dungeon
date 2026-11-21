@@ -39,5 +39,11 @@ public MyRoomState() { }
 
 		[Type(7, "map", typeof(MapSchema<CharacterStatsState>))]
 		public MapSchema<CharacterStatsState> characterCatalog = null;
+
+		[Type(8, "uint32")]
+		public uint nextTraitKills = default(uint);
+
+		[Type(9, "array", typeof(ArraySchema<TraitDefinitionState>))]
+		public ArraySchema<TraitDefinitionState> traitCatalog = null;
 	}
 }

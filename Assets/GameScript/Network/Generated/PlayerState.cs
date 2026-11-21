@@ -81,5 +81,17 @@ public PlayerState() { }
 
 		[Type(21, "uint8")]
 		public byte bonusProjectileHits = default(byte);
+
+		[Type(22, "uint32")]
+		public uint traitOfferId = default(uint);
+
+		[Type(23, "float64")]
+		public double traitDeadline = default(double);
+
+		[Type(24, "string")]
+		public string lastTraitId = default(string);
+
+		[Type(25, "map", typeof(MapSchema<uint>), "uint32")]
+		public MapSchema<uint> traitRanks = null;
 	}
 }

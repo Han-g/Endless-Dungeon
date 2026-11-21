@@ -360,6 +360,15 @@ public class NetworkManager : MonoBehaviour
             enemy);
     }
 
+    public Task ChooseTraitAsync(uint offerId, string traitId)
+    {
+        return room == null ? Task.CompletedTask : room.Send("trait/choose", new Dictionary<string, object>
+        {
+            ["offerId"] = offerId,
+            ["traitId"] = traitId
+        });
+    }
+
     public void SendMoveInput(
         Vector2 direction,
         uint sequence)
