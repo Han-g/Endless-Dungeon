@@ -106,7 +106,9 @@ describe("캐릭터 기본 능력치", () => {
         for (const [level, bonus] of [[1, 0], [3, 1], [5, 2], [8, 3]]) {
             const { state, player } = fixture();
             applyCharacterBaseStats(player, 1);
-            player.level = level;
+            if (level > 1) rewardMonsterKill(player, LEVEL_XP[level - 1]);
+            assert.equal(player.levelStartExperience, LEVEL_XP[level - 1]);
+            assert.equal(player.bonusProjectileHits, bonus);
             const system = new ProjectileSystem(state);
             system.setAttackInput("host", { aimX: 1, aimY: 0 });
             system.update(0);
@@ -148,6 +150,7 @@ describe("처치 경험치와 직업 성장", () => {
         assert.equal(player.alive, false);
         assert.equal(player.level, LEVEL_XP.length);
         assert.equal(player.experience, cap);
+        assert.equal(player.levelStartExperience, cap);
         assert.equal(player.nextLevelExperience, 0);
         const hp = player.maxHp;
         rewardMonsterKill(player);

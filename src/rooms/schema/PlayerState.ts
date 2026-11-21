@@ -1,7 +1,7 @@
 import { Schema, type } from "@colyseus/schema";
 import { getCharacterDefinition } from "../../game/CharacterCatalog.js";
 
-import { nextLevelExperience } from "../../game/CharacterGrowth.js";
+import { getLevelPierceBonus, LEVEL_XP, nextLevelExperience } from "../../game/CharacterGrowth.js";
 
 const DEFAULT_CHARACTER = getCharacterDefinition(1);
 
@@ -38,4 +38,7 @@ export class PlayerState extends Schema {
     @type("float32") attacksPerSecond: number = DEFAULT_CHARACTER.weapon.attacksPerSecond;
     @type("float32") projectileSpeed: number = DEFAULT_CHARACTER.weapon.speed;
     @type("float32") projectileRange: number = DEFAULT_CHARACTER.weapon.range;
+
+    @type("uint32") levelStartExperience: number = LEVEL_XP[0];
+    @type("uint8") bonusProjectileHits: number = getLevelPierceBonus(1);
 }

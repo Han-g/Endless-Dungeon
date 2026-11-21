@@ -3,7 +3,6 @@ import { MyRoomState } from "../rooms/schema/MyRoomState.js";
 import { ProjectileState } from "../rooms/schema/ProjectileState.js";
 import { getCharacterDefinition, type ProjectileConfig } from "../game/CharacterCatalog.js";
 
-import { getLevelPierceBonus } from "../game/CharacterGrowth.js";
 import type { PlayerState } from "../rooms/schema/PlayerState.js";
 
 interface AttackInputMessage {
@@ -213,7 +212,7 @@ export class ProjectileSystem {
                 previousY: projectile.y,
 
                 hitRadius: config.hitRadius,
-                remainingHitCount: Math.max(1, config.maxHitCount + getLevelPierceBonus(player.level)),
+                remainingHitCount: Math.max(1, config.maxHitCount + player.bonusProjectileHits),
 
                 hitEnemyIds: new Set<string>()
             }
