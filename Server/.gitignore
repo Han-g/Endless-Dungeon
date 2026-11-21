@@ -2,3 +2,6 @@ node_modules
 build
 .colyseus-cloud.json
 .devmode.json
+.cache/
+.env.local
+.env.test.local

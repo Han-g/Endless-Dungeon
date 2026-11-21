@@ -115,3 +115,6 @@ InitTestScene*.unity*
 /Server/.env
 /Server/logs/
 *.log
+
+# Local snapshots created before implementation changes
+/.local-backups/
