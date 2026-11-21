@@ -15,6 +15,8 @@ import { tokenDigest } from "../src/auth/SessionRepository.js";
 import { AuthError } from "../src/auth/contracts.js";
 import { authRuntime } from "../src/auth/runtime.js";
 import type { WaitingRoom } from "../src/rooms/WaitingRoom.js";
+import { EnemyState } from "../src/rooms/schema/EnemyState.js";
+import { GAINS_PER_LEVEL, LEVEL_XP, XP_PER_KILL } from "../src/game/CharacterGrowth.js";
 import { CHARACTER_DEFINITIONS } from "../src/game/CharacterCatalog.js";
 
 interface Result { requestId: string; ok: boolean; error: string; }
@@ -297,6 +299,38 @@ describe("WSL 인증 HTTP · 실제 MongoDB/Redis · 대기방 WebSocket", funct
         close(remote.moveSpeed, 3.6);
         assert.equal(remote.isReady, false);
         assert.equal(room.state.players.get(guest.sessionId)?.maxHp, 100);
+    });
+
+    it("실제 투사체 처치 시 마지막 타격자의 성장 상태만 소켓으로 전파한다", async () => {
+        const { host, guest, room } = await pair();
+        await readyPair(host, guest);
+        await command(host, "room/start");
+        await command(host, "game/loaded");
+        const shooter = room.state.players.get(host.sessionId)!;
+        const weapon = CHARACTER_DEFINITIONS.find(d => d.id === shooter.characterId)!.weapon;
+        const gain = GAINS_PER_LEVEL[shooter.characterId];
+        const startXp = Math.max(0, LEVEL_XP[1] - XP_PER_KILL);
+        shooter.experience = startXp;
+        const startKills = shooter.killCount;
+        const maxHp = shooter.maxHp;
+        const enemy = new EnemyState();
+        enemy.x = shooter.x + weapon.spawnDistance;
+        enemy.y = shooter.y + weapon.originOffsetY;
+        room.state.enemies.set("growth-target", enemy);
+        await command(guest, "game/loaded");
+        host.send("input/attack", { aimX: 1, aimY: 0 });
+        await eventually(() => guest.state?.players?.get(host.sessionId)?.level === 2,
+            "처치자의 레벨업 미수신");
+        const result = guest.state.players.get(host.sessionId);
+        assert.equal(result.experience, startXp + XP_PER_KILL);
+        assert.equal(result.nextLevelExperience, LEVEL_XP[2]);
+        assert.equal(result.killCount, startKills + 1);
+        assert.equal(result.maxHp, maxHp + gain.maxHp);
+        assert.equal(result.damage, weapon.damage + gain.damage);
+        assert.ok(Math.abs(result.attacksPerSecond - (weapon.attacksPerSecond + gain.attacksPerSecond)) < 0.00001);
+        assert.equal(guest.state.game.killCount, 1);
+        assert.equal(guest.state.players.get(guest.sessionId).experience, 0);
+        assert.equal(guest.state.enemies.has("growth-target"), false);
     });
 
     it("Ready·캐릭터 변경·방장 권한·로딩 장벽·입력 제한을 적용한다", async () => {

@@ -4,6 +4,8 @@ import { EnemySystem } from "./EnemySystem.js";
 
 import { ProjectileSystem } from "./ProjectileSystem.js";
 
+import { rewardMonsterKill } from "../game/CharacterGrowth.js";
+
 const MAX_DELTA_SECONDS = 0.1;
 const PLAYER_HURT_INVULNERABILITY_SECONDS = 0.75;
 
@@ -188,28 +190,9 @@ export class CombatSystem {
                     ownerSessionId);
 
             if (owner !== undefined) {
-                owner.killCount += 1;
-                owner.level =
-                    this.calculateLevel(
-                        owner.killCount);
+                rewardMonsterKill(owner);
             }
         }
-    }
-
-    private calculateLevel(
-        killCount: number
-    ): number {
-        if (killCount >= 12000) return 10;
-        if (killCount >= 8000) return 9;
-        if (killCount >= 5000) return 8;
-        if (killCount >= 3000) return 7;
-        if (killCount >= 1000) return 6;
-        if (killCount >= 500) return 5;
-        if (killCount >= 200) return 4;
-        if (killCount >= 50) return 3;
-        if (killCount >= 10) return 2;
-
-        return 1;
     }
 
     private resolveEnemyContactDamage(): void {

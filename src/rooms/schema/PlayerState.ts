@@ -1,6 +1,8 @@
 import { Schema, type } from "@colyseus/schema";
 import { getCharacterDefinition } from "../../game/CharacterCatalog.js";
 
+import { nextLevelExperience } from "../../game/CharacterGrowth.js";
+
 const DEFAULT_CHARACTER = getCharacterDefinition(1);
 
 export class PlayerState extends Schema {
@@ -29,4 +31,11 @@ export class PlayerState extends Schema {
     @type("boolean") isReady: boolean = false;
 
     @type("float32") moveSpeed: number = DEFAULT_CHARACTER.moveSpeed;
+
+    @type("uint32") experience: number = 0;
+    @type("uint32") nextLevelExperience: number = nextLevelExperience(1);
+    @type("int32") damage: number = DEFAULT_CHARACTER.weapon.damage;
+    @type("float32") attacksPerSecond: number = DEFAULT_CHARACTER.weapon.attacksPerSecond;
+    @type("float32") projectileSpeed: number = DEFAULT_CHARACTER.weapon.speed;
+    @type("float32") projectileRange: number = DEFAULT_CHARACTER.weapon.range;
 }

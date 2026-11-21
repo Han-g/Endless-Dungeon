@@ -5,6 +5,7 @@ import { PlayerState } from "../src/rooms/schema/PlayerState.js";
 import { ReadyRules } from "../src/rooms/ReadyRules.js";
 import { PlayerSystem } from "../src/simulation/PlayerSystem.js";
 import { ProjectileSystem } from "../src/simulation/ProjectileSystem.js";
+import { GAINS_PER_LEVEL, LEVEL_XP, rewardMonsterKill } from "../src/game/CharacterGrowth.js";
 import { MapCollision } from "../src/simulation/MapCollision.js";
 
 function fixture() {
@@ -111,6 +112,87 @@ describe("캐릭터 기본 능력치", () => {
             system.update(0);
             assert.equal(system.getRuntimeProjectile("projectile-1")!.remainingHitCount,
                 getCharacterDefinition(1).weapon.maxHitCount + bonus);
+        }
+    });
+});
+
+describe("처치 경험치와 직업 성장", () => {
+    it("누적 경계에서만 강화하고 여러 레벨을 건너뛴 보상도 모두 적용한다", () => {
+        const { player } = fixture();
+        const base = getCharacterDefinition(1);
+        const gains = GAINS_PER_LEVEL[1];
+        player.hp -= 35;
+        rewardMonsterKill(player, LEVEL_XP[1] - 1);
+        assert.equal(player.level, 1);
+        assert.equal(player.hp, base.maxHp - 35);
+        rewardMonsterKill(player, 1);
+        assert.equal(player.level, 2);
+        assert.equal(player.nextLevelExperience, LEVEL_XP[2]);
+        assert.equal(player.hp, base.maxHp - 35 + gains.maxHp);
+        rewardMonsterKill(player, LEVEL_XP[4] - LEVEL_XP[1] + 1);
+        assert.equal(player.level, 5);
+        assert.equal(player.experience, LEVEL_XP[4] + 1);
+        assert.equal(player.maxHp, base.maxHp + 4 * gains.maxHp);
+        assert.equal(player.damage, base.weapon.damage + 4 * gains.damage);
+        assert.equal(player.hp, player.maxHp - 35);
+        assert.equal(player.killCount, 3);
+    });
+
+    it("최고 레벨 이후에는 처치 수만 증가하며 사후 처치가 부활시키지 않는다", () => {
+        const { player } = fixture();
+        player.hp = 0;
+        player.alive = false;
+        const cap = LEVEL_XP[LEVEL_XP.length - 1];
+        rewardMonsterKill(player, cap + 1);
+        assert.equal(player.hp, 0);
+        assert.equal(player.alive, false);
+        assert.equal(player.level, LEVEL_XP.length);
+        assert.equal(player.experience, cap);
+        assert.equal(player.nextLevelExperience, 0);
+        const hp = player.maxHp;
+        rewardMonsterKill(player);
+        assert.equal(player.experience, cap);
+        assert.equal(player.maxHp, hp);
+        assert.equal(player.killCount, 2);
+    });
+
+    it("직업 성장값이 실제 이동 거리·투사체·다음 발사 간격에 반영된다", () => {
+        const map = new MapCollision();
+        for (const base of CHARACTER_DEFINITIONS) {
+            const { state, player } = fixture();
+            applyCharacterBaseStats(player, base.id);
+            player.x = -2;
+            const shots = new ProjectileSystem(state);
+            shots.setAttackInput("host", { aimX: 1, aimY: 0 });
+            shots.update(0);
+            const original = shots.getRuntimeProjectile("projectile-1")!;
+            rewardMonsterKill(player, LEVEL_XP[1]);
+            const gain = GAINS_PER_LEVEL[base.id];
+            assert.equal(original.damage, base.weapon.damage);
+            assert.equal(original.speed, base.weapon.speed);
+            close(player.attacksPerSecond, base.weapon.attacksPerSecond + gain.attacksPerSecond);
+
+            const move = new PlayerSystem(state, map);
+            move.setMoveInput("host", { x: 1, y: 0, sequence: 1 });
+            move.update(50);
+            close(player.x + 2, (base.moveSpeed + gain.moveSpeed) * 0.05);
+
+            // 직전 발사의 쿨다운은 유지되고, 다음 발사부터 강화된 수치를 사용합니다.
+            const oldCooldownTicks = Math.ceil(1 / base.weapon.attacksPerSecond / 0.05);
+            for (let tick = 0; tick <= oldCooldownTicks && !shots.getRuntimeProjectile("projectile-2"); tick++) {
+                shots.update(50);
+            }
+            const upgraded = shots.getRuntimeProjectile("projectile-2")!;
+            assert.equal(upgraded.damage, base.weapon.damage + gain.damage);
+            close(upgraded.speed, base.weapon.speed + gain.projectileSpeed);
+            close(upgraded.remainingDistance, base.weapon.range + gain.range);
+            const expectedInterval = 1 / (base.weapon.attacksPerSecond + gain.attacksPerSecond);
+            const ticks = Math.ceil(expectedInterval / 0.01);
+            for (let i = 1; i < ticks; i++) shots.update(10);
+            assert.equal(shots.getRuntimeProjectile("projectile-3"), undefined);
+            shots.update(10);
+            shots.update(10); // 부동소수점 경계에서 1틱 허용
+            assert.ok(shots.getRuntimeProjectile("projectile-3"));
         }
     });
 });

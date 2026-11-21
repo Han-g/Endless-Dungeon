@@ -22,6 +22,10 @@ export interface CharacterBaseStatsTarget {
     hp: number;
     maxHp: number;
     moveSpeed: number;
+    damage: number;
+    attacksPerSecond: number;
+    projectileSpeed: number;
+    projectileRange: number;
 }
 
 // 기본 체력/이동속도와 실제 공격 수치를 함께 관리합니다.
@@ -91,4 +95,8 @@ export function applyCharacterBaseStats(
     player.maxHp = definition.maxHp;
     player.hp = definition.maxHp;
     player.moveSpeed = definition.moveSpeed;
+    player.damage = definition.weapon.damage;
+    player.attacksPerSecond = definition.weapon.attacksPerSecond;
+    player.projectileSpeed = definition.weapon.speed;
+    player.projectileRange = definition.weapon.range;
 }

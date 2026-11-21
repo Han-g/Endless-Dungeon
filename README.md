@@ -99,6 +99,24 @@ Redis에 토큰 원문 대신 SHA-256 키를 저장합니다. 계정별 최신 �
 Unity 선택 화면은 이 목록을, 대기방 참가자 표시는 실제 `PlayerState.maxHp/moveSpeed`를 읽습니다.
 기준표가 아직 도착하지 않았으면 선택 확정을 비활성화합니다.
 Unity의 캐릭터 ScriptableObject는 ID·이름·무기 리소스만 보유합니다.
+### 처치 경험치와 직업별 성장 조정
+
+`src/game/CharacterGrowth.ts`의 `XP_PER_KILL`은 몬스터 한 마리당 경험치, `LEVEL_XP`는 레벨별 **누적** 필요 경험치, `GAINS_PER_LEVEL`은 직업별 레벨당 증가량입니다. `EXTRA_HIT_LEVELS`에서 공통 투사체 추가 적중 레벨을 바꿀 수 있습니다.
+기본 설정은 한 마리당 10 XP이며 10마리를 처치하면 레벨 2가 됩니다. 직업 ID는 1 전사, 2 궁수, 3 도적, 4 마법사입니다.
+최대 체력·피해량은 정수, 초당 공격 횟수·이동속도·투사체 속도·사거리는 소수로 조정합니다. 값 0은 해당 능력치를 올리지 않습니다.
+전투 중 마지막 타격자의 처치에 한 번 지급합니다. 최대 체력 증가분만 현재 체력에 더하며, 사망자는 부활하지 않습니다. 발사된 투사체는 발사 당시 수치를 유지합니다.
+성장은 한 판 동안 유지됩니다. `PlayerState.experience`는 누적 XP, `nextLevelExperience`는 다음 레벨의 누적 목표(최고 레벨이면 0)입니다. 최고 레벨 이후에는 개인·팀 처치 수만 계속 증가합니다.
+
+Schema 필드를 변경한 뒤 WSL에서 Unity용 코드를 다시 생성합니다.
+
+```bash
+cd /home/ark98/projects/endless-dungeon-server
+node node_modules/@colyseus/schema/bin/schema-codegen src/rooms/schema/*.ts --csharp --namespace EndlessDungeon.Network.Generated --output "/mnt/d/Study/Endless Dungeon/Assets/GameScript/Network/Generated"
+```
+
+2026-11-18 적용: 서버 타입 검사·빌드, 단위 9개와 통합 24개 테스트 통과.
+Unity C# 소스 68개는 설치된 Unity/패키지 DLL을 참조한 Roslyn 컴파일을 통과했습니다.
+Unity Editor 플레이 모드와 실제 화면 배치는 이번 검사에 포함하지 않았습니다.
 
 ## 테스트
 

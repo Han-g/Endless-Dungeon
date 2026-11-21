@@ -3,6 +3,7 @@ import { MyRoomState } from "../rooms/schema/MyRoomState.js";
 import { ProjectileState } from "../rooms/schema/ProjectileState.js";
 import { getCharacterDefinition, type ProjectileConfig } from "../game/CharacterCatalog.js";
 
+import { getLevelPierceBonus } from "../game/CharacterGrowth.js";
 import type { PlayerState } from "../rooms/schema/PlayerState.js";
 
 interface AttackInputMessage {
@@ -31,24 +32,6 @@ interface RuntimeProjectile {
 
 const MAX_PROJECTILES = 512;
 const MAX_DELTA_SECONDS = 0.1;
-
-function getLevelPierceBonus(
-    level: number
-): number {
-    if (level >= 8) {
-        return 3;
-    }
-
-    if (level >= 5) {
-        return 2;
-    }
-
-    if (level >= 3) {
-        return 1;
-    }
-
-    return 0;
-}
 
 export class ProjectileSystem {
     private readonly aimInputs =
@@ -166,7 +149,7 @@ export class ProjectileSystem {
                 this.nextFireTimes.set(
                     sessionId,
                     this.elapsedSeconds +
-                    1 / weapon.attacksPerSecond
+                    1 / player.attacksPerSecond
                 );
             }
         );
@@ -222,9 +205,9 @@ export class ProjectileSystem {
         this.runtimeProjectiles.set(
             projectileId,
             {
-                speed: config.speed,
-                damage: config.damage,
-                remainingDistance: config.range,
+                speed: player.projectileSpeed,
+                damage: player.damage,
+                remainingDistance: player.projectileRange,
 
                 previousX: projectile.x,
                 previousY: projectile.y,
