@@ -57,5 +57,29 @@ public PlayerState() { }
 
 		[Type(13, "float32")]
 		public float moveSpeed = default(float);
+
+		[Type(14, "uint32")]
+		public uint experience = default(uint);
+
+		[Type(15, "uint32")]
+		public uint nextLevelExperience = default(uint);
+
+		[Type(16, "int32")]
+		public int damage = default(int);
+
+		[Type(17, "float32")]
+		public float attacksPerSecond = default(float);
+
+		[Type(18, "float32")]
+		public float projectileSpeed = default(float);
+
+		[Type(19, "float32")]
+		public float projectileRange = default(float);
+
+		[Type(20, "uint32")]
+		public uint levelStartExperience = default(uint);
+
+		[Type(21, "uint8")]
+		public byte bonusProjectileHits = default(byte);
 	}
 }
