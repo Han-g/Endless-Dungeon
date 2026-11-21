@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -13,6 +14,12 @@ public sealed class NetworkPlayerView : MonoBehaviour
 
     [SerializeField, Min(1f)]
     private float inputSendRate = 20f;
+
+    [SerializeField, Min(0f)]
+    private float damageBlinkSeconds = 0.12f;
+
+    private readonly List<SpriteRenderer> blinkSprites = new();
+    private double blinkUntil;
 
     private NetworkManager networkManager;
 
@@ -147,6 +154,15 @@ public sealed class NetworkPlayerView : MonoBehaviour
             state.x,
             state.y);
 
+        if (initialized && !snapImmediately && IsLocalPlayer && IsAlive)
+        {
+            // A level-up can increase both HP values in the same patch as a hit.
+            long missingHp = (long)state.maxHp - state.hp;
+            bool tookDamage = state.hp < CurrentHp ||
+                (state.maxHp > MaxHp && missingHp > (long)MaxHp - CurrentHp);
+            if (tookDamage) BlinkOnDamage();
+        }
+
         CurrentHp = state.hp;
         MaxHp = state.maxHp;
         IsAlive = state.alive;
@@ -172,8 +188,43 @@ public sealed class NetworkPlayerView : MonoBehaviour
         }
     }
 
+    private void BlinkOnDamage()
+    {
+        if (!isActiveAndEnabled || damageBlinkSeconds <= 0f) return;
+
+        if (blinkUntil == 0d)
+        {
+            // Include the weapon and the outline sprites created by PlayerOutline.Awake.
+            // Only restore renderers hidden by this effect.
+            GetComponentsInChildren(true, blinkSprites);
+            for (int i = blinkSprites.Count - 1; i >= 0; i--)
+            {
+                if (blinkSprites[i].forceRenderingOff)
+                    blinkSprites.RemoveAt(i);
+                else
+                    blinkSprites[i].forceRenderingOff = true;
+            }
+        }
+        blinkUntil = Time.unscaledTimeAsDouble + damageBlinkSeconds;
+    }
+
+    private void EndDamageBlink()
+    {
+        foreach (var sprite in blinkSprites)
+        {
+            if (sprite != null) sprite.forceRenderingOff = false;
+        }
+        blinkSprites.Clear();
+        blinkUntil = 0d;
+    }
+
+    private void OnDisable() => EndDamageBlink();
+
     private void Update()
     {
+        if (blinkUntil > 0d && Time.unscaledTimeAsDouble >= blinkUntil)
+            EndDamageBlink();
+
         if (
             !initialized ||
             !IsLocalPlayer ||

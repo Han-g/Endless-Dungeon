@@ -11,6 +11,8 @@ public sealed class BattleGrowthHUD : MonoBehaviour
     [SerializeField] private NetworkManager networkManager;
     [SerializeField] private GameObject panel;
     [SerializeField] private TMP_Text levelText;
+    [SerializeField] private TMP_Text healthText;
+    [SerializeField] private RectTransform healthFill;
     [SerializeField] private TMP_Text experienceText;
     [SerializeField] private RectTransform experienceFill;
     [SerializeField] private RectTransform gainsPanel;
@@ -20,6 +22,7 @@ public sealed class BattleGrowthHUD : MonoBehaviour
     private string displayedSession;
     private byte characterId;
     private byte level;
+    private int currentHp;
     private uint experience;
     private uint floor;
     private uint next;
@@ -98,6 +101,14 @@ public sealed class BattleGrowthHUD : MonoBehaviour
         else if (player.level > level)
         {
             ShowLevelUp(level, player, lastStats);
+        }
+
+        if (initial || currentHp != player.hp || lastStats.MaxHp != player.maxHp)
+        {
+            currentHp = player.hp;
+            healthText.text = $"HP  {currentHp} / {player.maxHp}";
+            float fraction = player.maxHp > 0 ? Mathf.Clamp01((float)currentHp / player.maxHp) : 0f;
+            healthFill.anchorMax = new Vector2(fraction, 1f);
         }
 
         if (initial || level != player.level || experience != player.experience ||
