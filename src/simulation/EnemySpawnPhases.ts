@@ -34,10 +34,8 @@ export const SPAWN_PHASES:
             maxAlive: 40,
 
             enemies: [
-                {
-                    typeId: 1,
-                    weight: 100
-                }
+                { typeId: 1, weight: 70 }, // Slime
+                { typeId: 2, weight: 30 }  // Fast bat
             ]
         }
     ];

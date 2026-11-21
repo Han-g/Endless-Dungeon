@@ -100,5 +100,18 @@ export const ENEMY_CONFIGS:
 
                 attack: null
             }
+        ],
+        [
+            2,
+            {
+                typeId: 2, // Fast bat
+                maxHp: 15,
+                moveSpeed: 4,
+                bodyRadius: 0.3,
+                knockbackMultiplier: 1,
+                movement: { kind: "chase", stopDistance: 0.4 },
+                contact: { damage: 4, range: 0.4, intervalSeconds: 0.75 },
+                attack: null
+            }
         ]
     ]);
