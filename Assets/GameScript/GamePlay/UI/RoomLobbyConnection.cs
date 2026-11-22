@@ -39,6 +39,7 @@ public class RoomLobbyConnection : MonoBehaviour
     private string gameSceneName = "GamePlayScene";
 
     private bool gameSceneLoading;
+    private float? returnToLoginAt;
 
     public bool IsGameTransitioning => gameSceneLoading;
 
@@ -104,8 +105,21 @@ public class RoomLobbyConnection : MonoBehaviour
 
     private void Update()
     {
+        if (returnToLoginAt.HasValue)
+        {
+            if (Time.unscaledTime >= returnToLoginAt.Value)
+            {
+                returnToLoginAt = null;
+                if (ClientSession.Instance != null && !ClientSession.Instance.IsAuthenticated)
+                    SceneManager.LoadScene("MainMenuScene");
+            }
+            return;
+        }
+
         if (connectionToken.Length > 0 && connectionToken != CurrentToken())
         {
+            // A local TTL can elapse one frame before the server's 4401 arrives.
+            if (ReturnToLoginIfCurrentSession()) return;
             DropConnections(true);
             SetStatus("Please Try to Login again.");
         }
@@ -281,10 +295,11 @@ public class RoomLobbyConnection : MonoBehaviour
             if (lobby == source && IsLive(source) && ValidId(id) && listings.Remove(id))
                 ListingsChanged?.Invoke();
         });
-        source.OnLeave += _ =>
+        source.OnLeave += code =>
         {
             if (lobby != source || destroyed) return;
             lobby = null;
+            if (code == 4401 && ReturnToLoginIfCurrentSession()) return;
             ClearListings();
             SetStatus("Lobby disconnected. Reconnecting...");
             ScheduleLobbyRetry();
@@ -415,6 +430,7 @@ public class RoomLobbyConnection : MonoBehaviour
             gameSceneLoading = false;
 
             CurrentRoom = null;
+            if (code == 4401 && ReturnToLoginIfCurrentSession()) return;
 
             ClientSession.Instance?.ClearRoom();
 
@@ -512,6 +528,29 @@ public class RoomLobbyConnection : MonoBehaviour
             {
                 ["characterId"] = id
             });
+    }
+
+    private bool ReturnToLoginIfCurrentSession()
+    {
+        var session = ClientSession.Instance;
+        if (session == null || connectionToken.Length == 0 || session.AccessToken != connectionToken)
+            return false;
+
+        session.RequireLogin();
+        DropConnections(false);
+        Time.timeScale = 1f;
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+        returnToLoginAt = Time.unscaledTime + 1.5f;
+        return true;
+    }
+
+    private void OnGUI()
+    {
+        if (!returnToLoginAt.HasValue) return;
+        float width = Mathf.Min(420f, Screen.width);
+        var bounds = new Rect((Screen.width - width) / 2f, (Screen.height - 60f) / 2f, width, 60f);
+        GUI.Box(bounds, "Connection closed. Returning to login...");
     }
 
     private void DropConnections(bool notify)

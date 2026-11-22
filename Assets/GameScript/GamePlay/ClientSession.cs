@@ -14,6 +14,16 @@ public class ClientSession : MonoBehaviour
     public bool IsHost { get; private set; }
     public int SelectedCharacterId { get; private set; } = 1;
 
+    public bool LoginNoticePending { get; private set; }
+
+    public void RequireLogin()
+    {
+        ClearAuthentication();
+        LoginNoticePending = true;
+    }
+
+    public void AcknowledgeLoginNotice() => LoginNoticePending = false;
+
     public bool IsAuthenticated =>
         !string.IsNullOrEmpty(AccessToken) &&
         !string.IsNullOrEmpty(UserId) &&
@@ -50,6 +60,7 @@ public class ClientSession : MonoBehaviour
         }
 
         ClearRoom();
+        LoginNoticePending = false;
         AccessToken = accessToken;
         ExpiresAt = expiresAt;
         UserId = profile.accountId;

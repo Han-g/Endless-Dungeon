@@ -79,6 +79,12 @@ public class GameSecneController : MonoBehaviour
 
     private void Start()
     {
+        if (ClientSession.Instance != null && ClientSession.Instance.LoginNoticePending)
+        {
+            Show(MainMenuState.Login);
+            return;
+        }
+
         if (
             ClientSession.Instance != null &&
             ClientSession.Instance.IsAuthenticated &&

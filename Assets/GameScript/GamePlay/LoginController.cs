@@ -33,7 +33,16 @@ public class LoginController : MonoBehaviour
     private void OnEnable()
     {
         SetBusy(false);
-        SetStatus(string.Empty);
+        var session = ClientSession.Instance;
+        if (session != null && session.LoginNoticePending)
+        {
+            SetStatus("Your session ended. Please sign in again.");
+            session.AcknowledgeLoginNotice();
+        }
+        else
+        {
+            SetStatus(string.Empty);
+        }
     }
 
     private void OnDisable()
