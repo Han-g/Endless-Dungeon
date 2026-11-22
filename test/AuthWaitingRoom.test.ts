@@ -496,6 +496,47 @@ describe("WSL 인증 HTTP · 실제 MongoDB/Redis · 대기방 WebSocket", funct
         } finally { await other.close(); }
     });
 
+    it("인증 검사가 지연되면 Redis 조회 하나를 공유하고 유효한 전투 입력을 적용한다", async () => {
+        const { host, guest, room } = await pair();
+        await readyPair(host, guest);
+        await command(host, "room/start");
+        await command(host, "game/loaded");
+        await command(guest, "game/loaded");
+        const peer = room.clients.find(c => c.sessionId === host.sessionId)!;
+        const startX = room.state.players.get(host.sessionId)!.x;
+
+        // Pause this isolated server's event loop so input arrives before its next audit.
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2600);
+        const first = authRuntime.service.checkSession(peer.auth);
+        assert.ok(first instanceof Promise);
+        assert.equal(authRuntime.service.checkSession(peer.auth), first);
+        room.messages["input/move"](peer, { x: 1, y: 0, sequence: 1 });
+        assert.equal(await first, "current");
+        await eventually(() => room.state.players.get(host.sessionId)!.x > startX, "재검사 후 이동하지 않음");
+        assert.equal(authRuntime.service.checkSession(peer.auth), "current");
+    });
+
+    it("지연 중 세션이 삭제되면 4401 사유를 한 번 기록하고 연결을 종료한다", async () => {
+        const { host, room } = await pair();
+        const peer = room.clients.find(c => c.sessionId === host.sessionId)!;
+        const left = closed(host);
+        const warnings: unknown[][] = [];
+        const warn = console.warn;
+        console.warn = (...args: unknown[]) => { warnings.push(args); warn(...args); };
+        try {
+            await redis.del(keyPrefix + ":session:" + tokenDigest(tokens[0]));
+            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2600);
+            room.messages["input/move"](peer, { x: 1, y: 0, sequence: 1 });
+            room.messages["input/attack"](peer, { aimX: 1, aimY: 0 });
+            assert.equal(await left, 4401);
+            const events = warnings.filter(([label, item]) => label === "[Auth] room_disconnect"
+                && (item as {roomId?: string})?.roomId === room.roomId);
+            assert.equal(events.length, 1);
+            assert.equal((events[0][1] as {reason: string}).reason, "session_missing_or_changed");
+            assert.ok(!JSON.stringify(events).includes(tokens[0]));
+        } finally { console.warn = warn; }
+    });
+
     it("Pub/Sub 없이 Redis 세션이 만료돼도 주기 검사로 기존 소켓을 종료한다", async () => {
         const lobby = track(await client(tokens[0]).joinOrCreate("lobby"));
         const left = closed(lobby);

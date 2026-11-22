@@ -31,6 +31,13 @@ export interface AccountStore {
     findByAccountId(accountId: string): Promise<AccountDocument | null>;
 }
 
+export type SessionCloseReason = "session_expired" | "session_revoked" | "session_replaced"
+    | "session_revoked_or_replaced" | "session_missing_or_changed" | "invalid_identity"
+    | "redis_unavailable" | "auth_shutdown" | "watch_removed" | "identity_check_failed"
+    | "room_command_failed";
+export type SessionDecision = "current" | SessionCloseReason;
+export type OnSessionInvalid = (reason: SessionCloseReason) => void;
+
 export interface SessionStore {
     consumeRegistrationBudget(ip: string): Promise<void>;
     consumeLoginBudget(loginId: string, ip: string): Promise<void>;
@@ -39,8 +46,8 @@ export interface SessionStore {
     revoke(accessToken: string): Promise<void>;
     revokeByKey(key: string): Promise<void>;
     findByKey(key: string): Promise<SessionDocument | null>;
-    watch(identity: unknown, callback: () => void): Promise<() => void>;
-    isCurrent(identity: unknown): boolean;
+    watch(identity: unknown, callback: OnSessionInvalid): Promise<() => void>;
+    checkSession(identity: unknown): SessionDecision | Promise<SessionDecision>;
 }
 
 export class AuthError extends Error {

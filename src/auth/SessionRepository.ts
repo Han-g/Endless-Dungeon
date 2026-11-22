@@ -1,7 +1,8 @@
+import { performance } from "node:perf_hooks";
 import { createHash, randomBytes } from "node:crypto";
 import type { Redis } from "ioredis";
 import { AuthError, requireAccessToken, readRoomIdentity } from "./contracts.js";
-import type { RoomIdentity, SessionDocument, SessionStore } from "./contracts.js";
+import type { OnSessionInvalid, RoomIdentity, SessionCloseReason, SessionDecision, SessionDocument, SessionStore } from "./contracts.js";
 
 const BUDGET = `
 local longest = 0
@@ -44,7 +45,8 @@ export function tokenDigest(value: string): string {
 interface WatchedSession {
     identity: RoomIdentity;
     checkedAt: number;
-    callbacks: Set<() => void>;
+    callbacks: Set<OnSessionInvalid>;
+    checking?: Promise<SessionDecision>;
 }
 
 export class SessionRepository implements SessionStore {
@@ -61,18 +63,18 @@ export class SessionRepository implements SessionStore {
         private readonly now: () => number = () => Math.floor(Date.now() / 1000)
     ) {
         this.subscriber = redis.duplicate({ lazyConnect: true });
-        this.subscriber.on("error", () => this.invalidateAll());
-        this.subscriber.on("close", () => this.invalidateAll());
+        this.subscriber.on("error", () => this.invalidateAll("redis_unavailable"));
+        this.subscriber.on("close", () => this.invalidateAll("redis_unavailable"));
         this.redis.on("close", this.onConnectionLost);
         this.subscriber.on("message", (channel, key) => {
-            if (channel === this.channel && /^[a-f0-9]{64}$/.test(key)) this.invalidate(key);
+            if (channel === this.channel && /^[a-f0-9]{64}$/.test(key)) this.invalidate(key, "session_revoked_or_replaced");
         });
     }
 
     private get channel(): string { return this.prefix + ":revoked"; }
     private get sessionPrefix(): string { return this.prefix + ":session:"; }
     private accountKey(accountId: string): string { return this.prefix + ":account:" + tokenDigest(accountId); }
-    private readonly onConnectionLost = (): void => { this.invalidateAll(); };
+    private readonly onConnectionLost = (): void => { this.invalidateAll("redis_unavailable"); };
 
     public async start(): Promise<void> {
         await this.subscriber.connect();
@@ -84,7 +86,7 @@ export class SessionRepository implements SessionStore {
     public close(): void {
         this.closed = true;
         if (this.timer) clearInterval(this.timer);
-        this.invalidateAll();
+        this.invalidateAll("auth_shutdown");
         this.redis.off("close", this.onConnectionLost);
         this.subscriber.disconnect();
     }
@@ -117,7 +119,7 @@ export class SessionRepository implements SessionStore {
         if (Number(result) !== 1) throw new AuthError(503, "SERVICE_UNAVAILABLE", "세션을 만들 수 없습니다.");
         // 같은 프로세스의 이전 연결은 Pub/Sub 수신을 기다리지 않고 폐기합니다.
         for (const [oldKey, entry] of this.watched) {
-            if (entry.identity.accountId === accountId && oldKey !== key) this.invalidate(oldKey);
+            if (entry.identity.accountId === accountId && oldKey !== key) this.invalidate(oldKey, "session_replaced");
         }
         return { accessToken, expiresAt };
     }
@@ -156,10 +158,10 @@ export class SessionRepository implements SessionStore {
             await this.redis.del(this.sessionPrefix + key);
             await this.redis.publish(this.channel, key);
         }
-        this.invalidate(key);
+        this.invalidate(key, "session_revoked");
     }
 
-    public async watch(value: unknown, callback: () => void): Promise<() => void> {
+    public async watch(value: unknown, callback: OnSessionInvalid): Promise<() => void> {
         const identity = readRoomIdentity(value);
         if (this.closed || this.redis.status !== "ready" || this.subscriber.status !== "ready") {
             throw new AuthError(503, "SERVICE_UNAVAILABLE", "인증 연결을 확인하세요.");
@@ -182,7 +184,7 @@ export class SessionRepository implements SessionStore {
                 this.watched.get(identity.sessionKey) !== entry) {
                 throw new AuthError(401, "INVALID_SESSION", "다시 로그인하세요.");
             }
-            entry.checkedAt = Date.now();
+            entry.checkedAt = performance.now();
             return detach;
         } catch (error) {
             detach();
@@ -190,45 +192,66 @@ export class SessionRepository implements SessionStore {
         }
     }
 
-    public isCurrent(value: unknown): boolean {
+    public checkSession(value: unknown): SessionDecision | Promise<SessionDecision> {
+        let identity: RoomIdentity;
+        try { identity = readRoomIdentity(value); }
+        catch { return "invalid_identity"; }
+        if (this.closed) return "auth_shutdown";
+        if (identity.expiresAt <= this.now()) return "session_expired";
+        if (this.redis.status !== "ready" || this.subscriber.status !== "ready") return "redis_unavailable";
+        const entry = this.watched.get(identity.sessionKey);
+        if (!entry) return "watch_removed";
+        if (identity.accountId !== entry.identity.accountId || identity.expiresAt !== entry.identity.expiresAt) {
+            return "invalid_identity";
+        }
+        if (performance.now() - entry.checkedAt <= 2500) return "current";
+        return this.refresh(identity.sessionKey, entry);
+    }
+
+    private refresh(key: string, entry: WatchedSession): Promise<SessionDecision> {
+        // The periodic audit and concurrent inputs share one Redis validation.
+        if (!entry.checking) {
+            entry.checking = this.verify(key, entry).finally(() => { entry.checking = undefined; });
+        }
+        return entry.checking;
+    }
+
+    private async verify(key: string, entry: WatchedSession): Promise<SessionDecision> {
+        let reason: SessionCloseReason;
         try {
-            const identity = readRoomIdentity(value);
-            const entry = this.watched.get(identity.sessionKey);
-            return !this.closed && this.redis.status === "ready" && this.subscriber.status === "ready" &&
-                !!entry && entry.identity.accountId === identity.accountId &&
-                entry.identity.expiresAt === identity.expiresAt && identity.expiresAt > this.now() &&
-                Date.now() - entry.checkedAt <= 2500;
-        } catch { return false; }
+            const session = await this.findByKey(key);
+            if (this.watched.get(key) !== entry) return "watch_removed";
+            if (entry.identity.expiresAt <= this.now()) reason = "session_expired";
+            else if (session?.accountId !== entry.identity.accountId || session.expiresAt !== entry.identity.expiresAt) {
+                reason = "session_missing_or_changed";
+            } else {
+                entry.checkedAt = performance.now();
+                return "current";
+            }
+        } catch { reason = "redis_unavailable"; }
+        if (this.watched.get(key) === entry) this.invalidate(key, reason);
+        return reason;
     }
 
     private async audit(): Promise<void> {
         if (this.closed || this.auditing) return;
         this.auditing = true;
         try {
-            await Promise.all([...this.watched].map(async ([key, entry]) => {
-                const session = await this.findByKey(key);
-                if (this.watched.get(key) !== entry) return;
-                if (!session || session.accountId !== entry.identity.accountId ||
-                    session.expiresAt !== entry.identity.expiresAt) this.invalidate(key);
-                else entry.checkedAt = Date.now();
-            }));
-        } catch {
-            // Redis 장애 시 기존 연결도 닫습니다. Pub/Sub 유실은 이 주기 검사로 보완합니다.
-            this.invalidateAll();
+            await Promise.all([...this.watched].map(([key, entry]) => this.refresh(key, entry)));
         } finally { this.auditing = false; }
     }
 
-    private invalidate(key: string): void {
+    private invalidate(key: string, reason: SessionCloseReason): void {
         const entry = this.watched.get(key);
         if (!entry) return;
         this.watched.delete(key);
         for (const callback of entry.callbacks) {
-            try { callback(); } catch { console.error("[Auth] CONNECTION_CLOSE_FAILED"); }
+            try { callback(reason); } catch { console.error("[Auth] CONNECTION_CLOSE_FAILED"); }
         }
         entry.callbacks.clear();
     }
 
-    private invalidateAll(): void {
-        for (const key of [...this.watched.keys()]) this.invalidate(key);
+    private invalidateAll(reason: SessionCloseReason): void {
+        for (const key of [...this.watched.keys()]) this.invalidate(key, reason);
     }
 }

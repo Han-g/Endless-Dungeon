@@ -1,6 +1,6 @@
 import { LobbyRoom } from "colyseus";
 import { authRuntime } from "../auth/runtime.js";
-import { authForRoom } from "../auth/roomAuth.js";
+import { authForRoom, closeAuthConnection } from "../auth/roomAuth.js";
 
 export class AuthenticatedLobbyRoom extends LobbyRoom {
     private readonly detachAuth = new Map<string, () => void>();
@@ -11,7 +11,8 @@ export class AuthenticatedLobbyRoom extends LobbyRoom {
 
     public override async onJoin(...args: Parameters<LobbyRoom["onJoin"]>) {
         const client = args[0];
-        const detach = await authForRoom(() => authRuntime.service.watch(client.auth, () => client.leave(4401)));
+        const detach = await authForRoom(() => authRuntime.service.watch(client.auth, reason =>
+            closeAuthConnection(client, this.roomId, "lobby.watch", reason)));
         this.detachAuth.set(client.sessionId, detach);
         try { return super.onJoin(...args); }
         catch (error) {

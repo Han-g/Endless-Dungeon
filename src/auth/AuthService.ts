@@ -1,3 +1,4 @@
+import type { OnSessionInvalid } from "./contracts.js";
 import { randomUUID } from "node:crypto";
 import { MongoServerError } from "mongodb";
 import {
@@ -75,12 +76,12 @@ export class AuthService {
         return this.requireIdentity({ ...session, sessionKey: tokenDigest(token) });
     }
 
-    public async watch(identity: unknown, onInvalid: () => void): Promise<() => void> {
+    public async watch(identity: unknown, onInvalid: OnSessionInvalid): Promise<() => void> {
         await this.requireIdentity(identity);
         return this.sessions.watch(identity, onInvalid);
     }
 
-    public isCurrent(identity: unknown): boolean { return this.sessions.isCurrent(identity); }
+    public checkSession(identity: unknown) { return this.sessions.checkSession(identity); }
     public async logout(tokenInput: unknown): Promise<void> {
         await this.sessions.revoke(requireAccessToken(tokenInput));
     }

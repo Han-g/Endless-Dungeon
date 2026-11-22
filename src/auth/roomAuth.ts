@@ -1,3 +1,5 @@
+import type { Client } from "colyseus";
+import type { SessionCloseReason } from "./contracts.js";
 import { ServerError } from "colyseus";
 import { AuthError } from "./contracts.js";
 
@@ -7,6 +9,16 @@ export async function authForRoom<T>(action: () => Promise<T>): Promise<T> {
         if (error instanceof AuthError) throw new ServerError(error.status, error.message);
         throw new ServerError(503, "인증 서비스를 확인하세요.");
     }
+}
+
+const closing = new WeakSet<Client>();
+export function isAuthClosing(client: Client): boolean { return closing.has(client); }
+
+export function closeAuthConnection(client: Client, roomId: string, source: string, reason: SessionCloseReason): void {
+    if (closing.has(client)) return;
+    closing.add(client);
+    console.warn("[Auth] room_disconnect", { at: new Date().toISOString(), code: 4401, roomId, source, reason });
+    client.leave(4401);
 }
 
 interface GameLease { roomId: string; sessionId: string; }

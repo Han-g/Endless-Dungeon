@@ -1,8 +1,9 @@
+import { AuthError, type SessionDecision } from "../auth/contracts.js";
 import { Room, Client, ServerError } from "colyseus";
 import { performance } from "node:perf_hooks";
 import { ClockTimer } from "@colyseus/timer";
 import { authRuntime } from "../auth/runtime.js";
-import { authForRoom, claimGameAccount, releaseGameAccount } from "../auth/roomAuth.js";
+import { authForRoom, claimGameAccount, closeAuthConnection, isAuthClosing, releaseGameAccount } from "../auth/roomAuth.js";
 import { MyRoomState } from "./schema/MyRoomState.js";
 import { PlayerState } from "./schema/PlayerState.js";
 import { GameSimulation } from "../simulation/GameSimulation.js";
@@ -99,15 +100,17 @@ export class WaitingRoom extends Room<{
                 this.rules.reportLoaded(client.sessionId));
         },
         "trait/choose": (client: Client, message: unknown): void => {
-            if (this.isAuthorized(client)) this.simulation.teamTraits.choose(client.sessionId, message);
+            void this.withAuthorization(client, "trait/choose", () => this.simulation.teamTraits.choose(client.sessionId, message));
         },
         "input/move": (client: Client, message: unknown): void => {
-            if (!this.isAuthorized(client) || this.state.game.phase !== "playing") return;
-            this.simulation.playerSystem.setMoveInput(client.sessionId, message);
+            void this.withAuthorization(client, "input/move", () => {
+                if (this.state.game.phase === "playing") this.simulation.playerSystem.setMoveInput(client.sessionId, message);
+            });
         },
         "input/attack": (client: Client, message: unknown): void => {
-            if (!this.isAuthorized(client) || this.state.game.phase !== "playing") return;
-            this.simulation.projectileSystem.setAttackInput(client.sessionId, message);
+            void this.withAuthorization(client, "input/attack", () => {
+                if (this.state.game.phase === "playing") this.simulation.projectileSystem.setAttackInput(client.sessionId, message);
+            });
         }
     };
 
@@ -142,10 +145,11 @@ export class WaitingRoom extends Room<{
 
     public async onJoin(client: Client): Promise<void> {
         const user = await authForRoom(() => authRuntime.service.requireIdentity(client.auth));
-        const detachAuth = await authForRoom(() => authRuntime.service.watch(client.auth, () => client.leave(4401)));
+        const detachAuth = await authForRoom(() => authRuntime.service.watch(client.auth, reason =>
+            closeAuthConnection(client, this.roomId, "waiting_room.watch", reason)));
         try {
             // Redis 검사 중 방이 시작될 수 있으므로 마지막 await 이후 상태와 점유를 검사합니다.
-            if (!authRuntime.service.isCurrent(client.auth)) throw new ServerError(401, "다시 로그인하세요.");
+            if (await authRuntime.service.checkSession(client.auth) !== "current" || isAuthClosing(client)) throw new ServerError(401, "다시 로그인하세요.");
             if (this.state.game.phase !== "waiting") throw new ServerError(409, "이미 시작된 방입니다.");
             const points = [{ x: -2, y: 0 }, { x: 2, y: 0 }, { x: 0, y: 2 }, { x: 0, y: -2 }];
             const used = new Set(this.spawnSlots.values());
@@ -206,16 +210,20 @@ export class WaitingRoom extends Room<{
         releaseGameAccount(member.accountId, this.roomId, sessionId);
     }
 
-    private isAuthorized(client: Client): boolean {
-        if (!this.members.has(client.sessionId)) return false;
+    private async withAuthorization(client: Client, source: string, action: () => void): Promise<void> {
+        const member = this.members.get(client.sessionId);
+        if (!member || isAuthClosing(client)) return;
+        let decision: SessionDecision;
         try {
-            if (authRuntime.service.isCurrent(client.auth)) return true;
-            client.leave(4401);
-            return false;
-        } catch {
-            client.leave(4401);
-            return false;
+            const result = authRuntime.service.checkSession(client.auth);
+            decision = typeof result === "string" ? result : await result;
+        } catch { decision = "identity_check_failed"; }
+        if (this.members.get(client.sessionId) !== member || isAuthClosing(client)) return;
+        if (decision !== "current") {
+            closeAuthConnection(client, this.roomId, source, decision);
+            return;
         }
+        action();
     }
 
     private command(
@@ -223,16 +231,23 @@ export class WaitingRoom extends Room<{
         execute: (data: RoomCommand) => RoomFailure | null
     ): void {
         const member = this.members.get(client.sessionId);
-        if (!member || !this.isAuthorized(client)) return;
+        if (!member || isAuthClosing(client)) return;
         if (member.pending >= 16) { client.leave(4400); return; }
         member.pending++;
         member.queue = member.queue.then(async () => {
+            if (this.members.get(client.sessionId) !== member || isAuthClosing(client)) return;
+            try { await authRuntime.service.requireIdentity(client.auth); }
+            catch (error) {
+                if (this.members.get(client.sessionId) === member) {
+                    closeAuthConnection(client, this.roomId, kind, error instanceof AuthError && error.status === 401
+                        ? "session_missing_or_changed" : "identity_check_failed");
+                }
+                return;
+            }
             if (this.members.get(client.sessionId) !== member) return;
-            await authRuntime.service.requireIdentity(client.auth);
-            if (this.members.get(client.sessionId) !== member || !this.isAuthorized(client)) return;
-            this.applyCommand(client, kind, message, execute);
+            await this.withAuthorization(client, kind, () => this.applyCommand(client, kind, message, execute));
         }).catch(() => {
-            client.leave(4401);
+            if (this.members.get(client.sessionId) === member) closeAuthConnection(client, this.roomId, kind, "room_command_failed");
         }).finally(() => { member.pending--; });
     }
 
@@ -242,7 +257,6 @@ export class WaitingRoom extends Room<{
         message: unknown,
         execute: (data: RoomCommand) => RoomFailure | null
     ): void {
-        if (!this.isAuthorized(client)) return;
         if (typeof message !== "object" || message === null || Array.isArray(message)) {
             client.leave(4400);
             return;
