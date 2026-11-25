@@ -1,8 +1,10 @@
 import { MyRoomState } from "../rooms/schema/MyRoomState.js";
+import type { PlayerState } from "../rooms/schema/PlayerState.js";
 
 import { EnemySystem } from "./EnemySystem.js";
 
 import { ProjectileSystem } from "./ProjectileSystem.js";
+import { PLAYER_BODY_CENTER_Y, PLAYER_BODY_HALF_WIDTH } from "./MapCollision.js";
 
 import { healOnKill, extraHurtGrace } from "../game/TeamTraits.js";
 import { rewardMonsterKill } from "../game/CharacterGrowth.js";
@@ -12,7 +14,7 @@ const PLAYER_HURT_INVULNERABILITY_SECONDS = 0.75;
 
 export class CombatSystem {
     /*
-     * 플레이어별 전역 접촉 피해 쿨다운입니다.
+     * 접촉 피해와 적 투사체가 함께 사용하는 플레이어별 피격 무적입니다.
      *
      * 적별로 쿨다운을 만들면 적 10마리가 겹쳤을 때
      * 한 틱에 피해가 10번 적용될 수 있습니다.
@@ -93,6 +95,22 @@ export class CombatSystem {
                 continue;
             }
 
+            if (runtime.faction === "enemy") {
+                const target = this.firstPlayerOnSegment(
+                    runtime.previousX, runtime.previousY, projectile.x, projectile.y,
+                    runtime.hitRadius + PLAYER_BODY_HALF_WIDTH
+                );
+                if (target !== undefined) {
+                    const [sessionId, player] = target;
+                    const now = this.state.game.elapsedSeconds;
+                    if (this.canDamagePlayer(sessionId, player, now)) {
+                        this.damagePlayer(sessionId, player, runtime.damage, now);
+                    }
+                    this.projectileSystem.removeProjectile(projectileId);
+                }
+                continue;
+            }
+
             for (
                 const [enemyId, enemy]
                 of this.state.enemies.entries()
@@ -124,7 +142,7 @@ export class CombatSystem {
                     runtime.hitRadius +
                     enemyConfig.bodyRadius;
 
-                if (!this.segmentIntersectsCircle(
+                if (this.firstCircleContact(
                     runtime.previousX,
                     runtime.previousY,
                     projectile.x,
@@ -132,7 +150,7 @@ export class CombatSystem {
                     enemy.x,
                     enemy.y,
                     collisionRadius
-                )) {
+                ) === undefined) {
                     continue;
                 }
 
@@ -203,15 +221,7 @@ export class CombatSystem {
         for (const [sessionId, player]
             of this.state.players.entries()) {
 
-            if (!player.alive) {
-                continue;
-            }
-
-            const nextDamageAt =
-                this.nextPlayerDamageTimes.get(sessionId) ?? 0;
-
-            // 플레이어의 공통 피격 무적 시간
-            if (now < nextDamageAt) {
+            if (!this.canDamagePlayer(sessionId, player, now)) {
                 continue;
             }
 
@@ -259,13 +269,7 @@ export class CombatSystem {
                     continue;
                 }
 
-                player.hp =
-                    Math.max(0, player.hp - contact.damage);
-
-                this.nextPlayerDamageTimes.set(
-                    sessionId,
-                    now + PLAYER_HURT_INVULNERABILITY_SECONDS + extraHurtGrace(player)
-                );
+                this.damagePlayer(sessionId, player, contact.damage, now);
 
                 if (targetTimes === undefined) {
                     targetTimes = new Map<string, number>();
@@ -281,96 +285,66 @@ export class CombatSystem {
                     now + contact.intervalSeconds
                 );
 
-                if (player.hp <= 0) {
-                    player.hp = 0;
-                    player.alive = false;
-                    player.velocityX = 0;
-                    player.velocityY = 0;
-                }
-
                 // 한 번 피해를 받았으므로 이번 플레이어 검사는 종료
                 break;
             }
         }
     }
 
-    private segmentIntersectsCircle(
-        startX: number,
-        startY: number,
+    private canDamagePlayer(sessionId: string, player: PlayerState, now: number): boolean {
+        return player.alive && now >= (this.nextPlayerDamageTimes.get(sessionId) ?? 0);
+    }
 
-        endX: number,
-        endY: number,
-
-        circleX: number,
-        circleY: number,
-
-        radius: number
-    ): boolean {
-        const segmentX =
-            endX - startX;
-
-        const segmentY =
-            endY - startY;
-
-        const segmentLengthSquared =
-            segmentX * segmentX +
-            segmentY * segmentY;
-
-        let interpolation = 0;
-
-        if (
-            segmentLengthSquared >
-            0.000001
-        ) {
-            const toCircleX =
-                circleX - startX;
-
-            const toCircleY =
-                circleY - startY;
-
-            interpolation =
-                (
-                    toCircleX *
-                    segmentX +
-                    toCircleY *
-                    segmentY
-                ) /
-                segmentLengthSquared;
-
-            interpolation =
-                Math.max(
-                    0,
-                    Math.min(
-                        1,
-                        interpolation
-                    )
-                );
-        }
-
-        const closestX =
-            startX +
-            segmentX *
-            interpolation;
-
-        const closestY =
-            startY +
-            segmentY *
-            interpolation;
-
-        const differenceX =
-            circleX - closestX;
-
-        const differenceY =
-            circleY - closestY;
-
-        const distanceSquared =
-            differenceX * differenceX +
-            differenceY * differenceY;
-
-        return (
-            distanceSquared <=
-            radius * radius
+    private damagePlayer(sessionId: string, player: PlayerState, damage: number, now: number): void {
+        player.hp = Math.max(0, player.hp - damage);
+        this.nextPlayerDamageTimes.set(
+            sessionId, now + PLAYER_HURT_INVULNERABILITY_SECONDS + extraHurtGrace(player)
         );
+        if (player.hp === 0) {
+            player.alive = false;
+            player.velocityX = 0;
+            player.velocityY = 0;
+        }
+    }
+
+    private firstPlayerOnSegment(
+        startX: number, startY: number, endX: number, endY: number, radius: number
+    ): [string, PlayerState] | undefined {
+        let first: [string, PlayerState] | undefined;
+        let firstTime = Infinity;
+        for (const [sessionId, player] of this.state.players.entries()) {
+            if (!player.alive) continue;
+            const t = this.firstCircleContact(
+                startX, startY, endX, endY, player.x, player.y + PLAYER_BODY_CENTER_Y, radius
+            );
+            if (t !== undefined && t < firstTime) {
+                firstTime = t;
+                first = [sessionId, player];
+            }
+        }
+        return first;
+    }
+
+    // 선분에서 원에 처음 닿는 위치를 0~1로 반환한다. 시작점이 원 안이면 0이다.
+    private firstCircleContact(
+        startX: number, startY: number, endX: number, endY: number,
+        circleX: number, circleY: number, radius: number
+    ): number | undefined {
+        const offsetX = startX - circleX;
+        const offsetY = startY - circleY;
+        const c = offsetX * offsetX + offsetY * offsetY - radius * radius;
+        if (c <= 0) return 0;
+
+        const dx = endX - startX;
+        const dy = endY - startY;
+        const a = dx * dx + dy * dy;
+        const b = offsetX * dx + offsetY * dy;
+        if (a === 0 || b >= 0) return undefined;
+
+        const discriminant = b * b - a * c;
+        if (discriminant < 0) return undefined;
+        const t = c / (-b + Math.sqrt(discriminant));
+        return t <= 1 ? t : undefined;
     }
 
     public removePlayer(sessionId: string): void {

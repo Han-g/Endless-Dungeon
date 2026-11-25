@@ -51,6 +51,8 @@ const HALF_HEIGHT = 0.75 / 2;
 const OFFSET_X = 0;
 const OFFSET_Y = 0.38;
 
+export { HALF_WIDTH as PLAYER_BODY_HALF_WIDTH, OFFSET_Y as PLAYER_BODY_CENTER_Y };
+
 // 부동소수점 오차로 벽 안에 걸리지 않도록 작은 간격을 둡니다.
 const SKIN = 0.001;
 

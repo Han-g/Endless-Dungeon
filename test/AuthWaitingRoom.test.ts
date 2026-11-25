@@ -331,7 +331,7 @@ describe("WSL 인증 HTTP · 실제 MongoDB/Redis · 대기방 WebSocket", funct
         await command(guest, "game/loaded");
         for (const client of [host, guest]) {
             await eventually(() => client.state?.game?.elapsedSeconds >= 300 &&
-                client.state.enemies.has("enemy-2"), "5분 초기 상태 미수신");
+                client.state.enemies.has("enemy-4"), "5분 초기 상태 미수신");
             const state = client.state;
             assert.equal(state.game.phase, "playing");
             assert.equal(state.game.killCount, 100);
@@ -342,6 +342,12 @@ describe("WSL 인증 HTTP · 실제 MongoDB/Redis · 대기방 WebSocket", funct
             assert.equal(state.enemies.get("enemy-2").typeId, 2);
             assert.equal(state.enemies.get("enemy-2").hp, 12);
             assert.equal(state.enemies.get("enemy-2").maxHp, 12);
+            for (const [id, hp] of [[3, 47], [4, 23]]) {
+                const enemy = state.enemies.get(`enemy-${id}`);
+                assert.equal(enemy.typeId, id);
+                assert.equal(enemy.hp, hp);
+                assert.equal(enemy.maxHp, hp);
+            }
             const warrior = state.players.get(host.sessionId);
             const archer = state.players.get(guest.sessionId);
             assert.equal(warrior.maxHp, 200);
@@ -361,6 +367,35 @@ describe("WSL 인증 HTTP · 실제 MongoDB/Redis · 대기방 WebSocket", funct
         assert.equal(room.state.game.killCount, 100);
         assert.ok(room.state.game.elapsedSeconds >= time);
         assert.equal(room.state.players.get(host.sessionId)!.experience, 500);
+    });
+
+    it("술사의 청색 탄과 피격 HP를 두 클라이언트에 전파한다", async () => {
+        const { host, guest, room } = await pair();
+        await readyPair(host, guest);
+        await command(host, "room/start");
+        await command(host, "game/loaded");
+        const target = room.state.players.get(host.sessionId)!;
+        const observer = room.state.players.get(guest.sessionId)!;
+        target.x = -3;
+        observer.x = 1;
+        target.y = observer.y = -5;
+        const caster = new EnemyState();
+        caster.typeId = 4;
+        caster.x = -8;
+        caster.y = -5;
+        caster.hp = caster.maxHp = 18;
+        room.state.enemies.set("test-caster", caster);
+        const hp = target.hp;
+        await command(guest, "game/loaded");
+        await Promise.all([host, guest].map(async client => {
+            await eventually(() => [...client.state.projectiles.values()].some(
+                p => p.ownerSessionId === "test-caster" && p.projectileTypeId === 5
+            ), "술사 투사체 미수신");
+            await eventually(() => client.state.players.get(host.sessionId)?.hp === hp - 7,
+                "술사 피격 HP 미수신");
+            assert.equal(client.state.players.get(guest.sessionId).hp, observer.maxHp);
+            assert.equal(client.state.game.killCount, 0);
+        }));
     });
 
     it("실제 투사체 처치 시 마지막 타격자의 성장 상태만 소켓으로 전파한다", async () => {

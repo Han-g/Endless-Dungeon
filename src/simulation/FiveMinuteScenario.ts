@@ -22,6 +22,8 @@ export function startFiveMinuteScenario(state: MyRoomState, simulation: GameSimu
     // Start with one of each for comparison, then use the usual weighted spawns.
     simulation.enemySystem.spawnOne(1);
     simulation.enemySystem.spawnOne(2);
+    simulation.enemySystem.spawnOne(3);
+    simulation.enemySystem.spawnOne(4);
     console.info("[Scenario 5:00]", {
         elapsedSeconds: state.game.elapsedSeconds,
         teamKills: state.game.killCount,

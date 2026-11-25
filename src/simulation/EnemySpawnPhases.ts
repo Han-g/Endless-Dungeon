@@ -37,5 +37,28 @@ export const SPAWN_PHASES:
                 { typeId: 1, weight: 70 }, // Slime
                 { typeId: 2, weight: 30 }  // Fast bat
             ]
+        },
+        {
+            startTime: 120,
+            spawnInterval: 0.7,
+            batchSize: 2,
+            maxAlive: 40,
+            enemies: [
+                { typeId: 1, weight: 55 },
+                { typeId: 2, weight: 30 },
+                { typeId: 3, weight: 15 } // Elder treant
+            ]
+        },
+        {
+            startTime: 180,
+            spawnInterval: 0.7,
+            batchSize: 2,
+            maxAlive: 40,
+            enemies: [
+                { typeId: 1, weight: 48 },
+                { typeId: 2, weight: 25 },
+                { typeId: 3, weight: 15 },
+                { typeId: 4, weight: 12 } // Violet caster
+            ]
         }
     ];

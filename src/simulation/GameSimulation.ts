@@ -29,12 +29,12 @@ export class GameSimulation {
             this.mapCollision
         );
 
+        this.projectileSystem = new ProjectileSystem(state, this.mapCollision);
         this.enemySystem = new EnemySystem(
             state,
-            this.mapCollision
+            this.mapCollision,
+            this.projectileSystem
         );
-
-        this.projectileSystem = new ProjectileSystem(state);
 
         this.combatSystem = new CombatSystem(
             state,

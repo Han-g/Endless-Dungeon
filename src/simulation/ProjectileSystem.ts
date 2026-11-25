@@ -5,6 +5,8 @@ import { ProjectileState } from "../rooms/schema/ProjectileState.js";
 import { getCharacterDefinition, type ProjectileConfig } from "../game/CharacterCatalog.js";
 
 import type { PlayerState } from "../rooms/schema/PlayerState.js";
+import type { EnemyAttackConfig } from "./EnemyCatalog.js";
+import { MapCollision } from "./MapCollision.js";
 
 interface AttackInputMessage {
     aimX: number;
@@ -17,6 +19,7 @@ interface StoredAimInput {
 }
 
 interface RuntimeProjectile {
+    faction: "player" | "enemy";
     speed: number;
     damage: number;
     remainingDistance: number;
@@ -47,7 +50,8 @@ export class ProjectileSystem {
     private nextProjectileId = 1;
 
     public constructor(
-        private readonly state: MyRoomState
+        private readonly state: MyRoomState,
+        private mapCollision?: MapCollision
     ) {
     }
 
@@ -144,7 +148,7 @@ export class ProjectileSystem {
                 }
 
                 const weapon = getCharacterDefinition(player.characterId).weapon;
-                this.createProjectile(sessionId, player, aim, weapon);
+                this.firePlayerProjectile(sessionId, player, aim, weapon);
 
                 this.nextFireTimes.set(
                     sessionId,
@@ -155,69 +159,68 @@ export class ProjectileSystem {
         );
     }
 
-    private createProjectile(
+    private firePlayerProjectile(
         ownerSessionId: string,
         player: PlayerState,
         aim: StoredAimInput,
         config: ProjectileConfig
     ): void {
-        const projectileId =
-            `projectile-${this.nextProjectileId++}`;
-
-        const projectile = new ProjectileState();
-
-        // 발사한 플레이어
-        projectile.ownerSessionId =
-            ownerSessionId;
-
-        // 캐릭터에 대응하는 투사체 종류
-        projectile.projectileTypeId =
-            config.projectileTypeId;
-
-        // 투사체 이동 방향
-        projectile.directionX =
-            aim.x;
-
-        projectile.directionY =
-            aim.y;
-
-        // 플레이어 중심에서 조금 떨어진 위치에 생성
-        const originX = player.x;
-        const originY =
-            player.y + config.originOffsetY;
-
-        projectile.x =
-            originX +
-            aim.x * config.spawnDistance;
-
-        projectile.y =
-            originY +
-            aim.y * config.spawnDistance;
-
-        // Colyseus State에 등록
-        // 이 부분이 있어야 Unity에 투사체가 전달된다.
-        this.state.projectiles.set(
-            projectileId,
-            projectile
-        );
-
-        // 서버 내부에서만 사용하는 이동·전투 수치
-        this.runtimeProjectiles.set(
-            projectileId,
+        this.addProjectile(
+            ownerSessionId, config.projectileTypeId,
+            player.x + aim.x * config.spawnDistance,
+            player.y + config.originOffsetY + aim.y * config.spawnDistance,
+            aim.x, aim.y,
             {
+                faction: "player",
                 speed: player.projectileSpeed,
                 damage: player.damage,
                 remainingDistance: player.projectileRange,
-
-                previousX: projectile.x,
-                previousY: projectile.y,
-
                 hitRadius: config.hitRadius,
-                remainingHitCount: Math.max(1, config.maxHitCount + player.bonusProjectileHits + extraTraitHits(player)),
-
-                hitEnemyIds: new Set<string>()
+                remainingHitCount: Math.max(1,
+                    config.maxHitCount + player.bonusProjectileHits + extraTraitHits(player))
             }
         );
+    }
+
+    public fireEnemyBolt(
+        enemyId: string, x: number, y: number, dirX: number, dirY: number,
+        attack: Extract<EnemyAttackConfig, { kind: "projectile" }>
+    ): void {
+        if (this.state.projectiles.size >= MAX_PROJECTILES) return;
+        this.mapCollision ??= new MapCollision();
+        if (!this.mapCollision.canMoveCircle(x, y, x, y, attack.hitRadius)) return;
+
+        this.addProjectile(
+            enemyId, attack.projectileTypeId, x, y, dirX, dirY,
+            {
+                faction: "enemy",
+                speed: attack.speed,
+                damage: attack.damage,
+                remainingDistance: attack.range,
+                hitRadius: attack.hitRadius,
+                remainingHitCount: 1
+            }
+        );
+    }
+
+    private addProjectile(
+        ownerId: string, typeId: number,
+        x: number, y: number, dirX: number, dirY: number,
+        stats: Omit<RuntimeProjectile, "previousX" | "previousY" | "hitEnemyIds">
+    ): void {
+        const id = `projectile-${this.nextProjectileId++}`;
+        const projectile = new ProjectileState();
+        projectile.ownerSessionId = ownerId;
+        projectile.projectileTypeId = typeId;
+        projectile.x = x;
+        projectile.y = y;
+        projectile.directionX = dirX;
+        projectile.directionY = dirY;
+
+        this.runtimeProjectiles.set(id, {
+            ...stats, previousX: x, previousY: y, hitEnemyIds: new Set<string>()
+        });
+        this.state.projectiles.set(id, projectile);
     }
 
     private moveProjectiles(
@@ -250,10 +253,31 @@ export class ProjectileSystem {
                         )
                     );
 
-                projectile.x += projectile.directionX * moveDistance;
-                projectile.y += projectile.directionY * moveDistance;
-
-                runtime.remainingDistance -= moveDistance;
+                const endX = projectile.x + projectile.directionX * moveDistance;
+                const endY = projectile.y + projectile.directionY * moveDistance;
+                if (runtime.faction === "enemy" && this.mapCollision &&
+                    !this.mapCollision.canMoveCircle(projectile.x, projectile.y, endX, endY, runtime.hitRadius)) {
+                    // 벽 앞까지의 구간은 이번 틱에 플레이어와 충돌할 수 있다.
+                    let clear = 0;
+                    let blocked = 1;
+                    for (let i = 0; i < 12; i++) {
+                        const t = (clear + blocked) / 2;
+                        const x = projectile.x + (endX - projectile.x) * t;
+                        const y = projectile.y + (endY - projectile.y) * t;
+                        if (this.mapCollision.canMoveCircle(projectile.x, projectile.y, x, y, runtime.hitRadius)) {
+                            clear = t;
+                        } else {
+                            blocked = t;
+                        }
+                    }
+                    projectile.x += (endX - projectile.x) * clear;
+                    projectile.y += (endY - projectile.y) * clear;
+                    runtime.remainingDistance = 0;
+                } else {
+                    projectile.x = endX;
+                    projectile.y = endY;
+                    runtime.remainingDistance -= moveDistance;
+                }
             }
         );
 
@@ -278,7 +302,7 @@ export class ProjectileSystem {
             this.runtimeProjectiles.get(
                 projectileId);
 
-        return runtime !== undefined &&
+        return runtime?.faction === "player" &&
             !runtime.hitEnemyIds.has(enemyId);
     }
 
@@ -290,7 +314,7 @@ export class ProjectileSystem {
             this.runtimeProjectiles.get(
                 projectileId);
 
-        if (runtime === undefined) {
+        if (runtime?.faction !== "player") {
             return true;
         }
 

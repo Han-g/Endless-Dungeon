@@ -38,6 +38,9 @@ export type EnemyAttackConfig = AttackTiming & (
     | {
         kind: "projectile";
         projectileTypeId: number;
+        speed: number;
+        range: number;
+        hitRadius: number;
 
         shotCount: number;
         spreadDegrees: number;
@@ -119,6 +122,38 @@ export const ENEMY_CONFIGS:
                 movement: { kind: "chase", stopDistance: 0.4 },
                 contact: { damage: 4, range: 0.4, intervalSeconds: 0.75 },
                 attack: null
+            }
+        ],
+        [
+            3,
+            {
+                typeId: 3, // Elder treant
+                maxHp: 36,
+                moveSpeed: 1.45,
+                bodyRadius: 0.35,
+                knockbackMultiplier: 0.25,
+                movement: { kind: "chase", stopDistance: 0.45 },
+                contact: { damage: 12, range: 0.55, intervalSeconds: 1.25 },
+                attack: null
+            }
+        ],
+        [
+            4,
+            {
+                typeId: 4, // Violet caster
+                maxHp: 18,
+                moveSpeed: 2.2,
+                bodyRadius: 0.3,
+                knockbackMultiplier: 1,
+                movement: { kind: "keepDistance", minDistance: 4, preferredDistance: 5, maxDistance: 6 },
+                contact: null,
+                attack: {
+                    kind: "projectile", projectileTypeId: 5,
+                    damage: 7, speed: 3.9, range: 24, hitRadius: 0.15,
+                    attackRange: 6.5, windupSeconds: 0.65, recoverySeconds: 0.4, cooldownSeconds: 3,
+                    shotCount: 1, spreadDegrees: 0,
+                    originOffsetX: 0, originOffsetY: 0.25, spawnDistance: 0
+                }
             }
         ]
     ]);

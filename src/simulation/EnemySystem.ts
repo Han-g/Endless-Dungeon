@@ -1,9 +1,10 @@
 import { MyRoomState } from "../rooms/schema/MyRoomState.js";
 import { EnemyState } from "../rooms/schema/EnemyState.js";
 import { PlayerState } from "../rooms/schema/PlayerState.js";
-import { MapCollision } from "./MapCollision.js";
+import { MapCollision, PLAYER_BODY_CENTER_Y } from "./MapCollision.js";
+import type { ProjectileSystem } from "./ProjectileSystem.js";
 import { EnemyNavigation, type NavigationPoint } from "./EnemyNavigation.js";
-import { ENEMY_CONFIGS, getSpawnMaxHp, type EnemyConfig } from "./EnemyCatalog.js";
+import { ENEMY_CONFIGS, getSpawnMaxHp, type EnemyConfig, type EnemyAttackConfig } from "./EnemyCatalog.js";
 import { SPAWN_PHASES, type EnemySpawnPhase } from "./EnemySpawnPhases.js";
 
 // 최초 반지름은 기존처럼 9~12 중 무작위 선택합니다.
@@ -39,12 +40,20 @@ interface EnemyNavigationState {
     nextSearchAt: number;
 }
 
+type ProjectileAttack = Extract<EnemyAttackConfig, { kind: "projectile" }>;
+interface CasterState {
+    nextAttackAt: number;
+    recoverUntil: number;
+    cast?: { target: PlayerState; dx: number; dy: number; fireAt: number };
+}
+
 export class EnemySystem {
     private readonly navigation: EnemyNavigation;
     private readonly navigationStates =
         new WeakMap<EnemyState, EnemyNavigationState>();
     private readonly knockbackStates =
         new WeakMap<EnemyState, EnemyKnockbackState>();
+    private readonly casters = new WeakMap<EnemyState, CasterState>();
 
     private pathSearchesRemaining = 0;
 
@@ -54,7 +63,8 @@ export class EnemySystem {
 
     public constructor(
         private readonly state: MyRoomState,
-        private readonly mapCollision: MapCollision
+        private readonly mapCollision: MapCollision,
+        private readonly projectiles?: Pick<ProjectileSystem, "fireEnemyBolt">
     ) {
         this.navigation = new EnemyNavigation(
             mapCollision, NAVIGATION_CELL_SIZE, MAX_PATH_EXPANDED_NODES);
@@ -114,6 +124,8 @@ export class EnemySystem {
 
         // 밀려난 뒤 이전 위치에서 계산한 경로를 따라가지 않도록 합니다.
         this.navigationStates.delete(enemy);
+        const caster = this.casters.get(enemy);
+        if (caster) caster.cast = undefined;
     }
 
     public update(
@@ -323,8 +335,8 @@ export class EnemySystem {
         livingPlayers: readonly PlayerState[]
     ): void {
         this.state.enemies.forEach(
-            (enemy) => {
-                if (!enemy.alive) {
+            (enemy, enemyId) => {
+                if (!enemy.alive || enemy.hp <= 0) {
                     enemy.velocityX = 0;
                     enemy.velocityY = 0;
                     return;
@@ -357,12 +369,12 @@ export class EnemySystem {
                     return;
                 }
 
-                this.moveEnemyTowardsPlayer(
-                    enemy,
-                    targetPlayer,
-                    config,
-                    deltaSeconds
-                );
+                if (config.movement.kind === "chase") {
+                    this.moveEnemyTowardsPlayer(enemy, targetPlayer, config, config.movement.stopDistance, deltaSeconds);
+                } else if (config.attack?.kind === "projectile") {
+                    this.updateCaster(enemyId, enemy, targetPlayer, livingPlayers, config,
+                        config.movement, config.attack, deltaSeconds);
+                }
             }
         );
 
@@ -452,22 +464,96 @@ export class EnemySystem {
         return true;
     }
 
+    private updateCaster(
+        enemyId: string, enemy: EnemyState, target: PlayerState,
+        livingPlayers: readonly PlayerState[], config: Readonly<EnemyConfig>,
+        movement: Extract<EnemyConfig["movement"], { kind: "keepDistance" }>,
+        attack: ProjectileAttack, dt: number
+    ): void {
+        enemy.velocityX = enemy.velocityY = 0;
+        const now = this.state.game.elapsedSeconds;
+        let caster = this.casters.get(enemy);
+        if (!caster) {
+            caster = { nextAttackAt: 0, recoverUntil: 0 };
+            this.casters.set(enemy, caster);
+        }
+
+        const originX = enemy.x + attack.originOffsetX;
+        const originY = enemy.y + attack.originOffsetY;
+        const cast = caster.cast;
+        if (cast) {
+            if (!livingPlayers.includes(cast.target)) {
+                caster.cast = undefined;
+            } else {
+                if (now + 1e-8 >= cast.fireAt) {
+                    this.fireVolley(enemyId, originX, originY, cast.dx, cast.dy, attack);
+                    caster.cast = undefined;
+                    caster.recoverUntil = now + attack.recoverySeconds;
+                }
+                return;
+            }
+        }
+        if (now < caster.recoverUntil) return;
+
+        const distance = Math.hypot(target.x - enemy.x, target.y - enemy.y);
+        const targetY = target.y + PLAYER_BODY_CENTER_Y;
+        const clear = this.mapCollision.canMoveCircle(originX, originY, target.x, targetY, attack.hitRadius);
+        if (!clear || distance > movement.maxDistance) {
+            // At close range behind cover, navigate around the obstacle before trying to shoot.
+            this.moveEnemyTowardsPlayer(enemy, target, config, clear ? movement.preferredDistance : 0, dt);
+            return;
+        }
+        this.navigationStates.delete(enemy);
+        if (distance < movement.minDistance) {
+            const dx = distance > 0 ? (enemy.x - target.x) / distance : 1;
+            const dy = distance > 0 ? (enemy.y - target.y) / distance : 0;
+            this.retreat(enemy, dx, dy, config, dt);
+            return;
+        }
+        if (now + 1e-8 < caster.nextAttackAt || distance > attack.attackRange) return;
+        const dx = target.x - originX;
+        const dy = targetY - originY;
+        const length = Math.hypot(dx, dy);
+        if (length === 0) return;
+        caster.cast = { target, dx: dx / length, dy: dy / length, fireAt: now + attack.windupSeconds };
+        caster.nextAttackAt = now + attack.cooldownSeconds;
+    }
+
+    private fireVolley(enemyId: string, x: number, y: number, dx: number, dy: number, attack: ProjectileAttack): void {
+        const aim = Math.atan2(dy, dx);
+        const spread = attack.spreadDegrees * Math.PI / 180;
+        for (let i = 0; i < attack.shotCount; i++) {
+            const angle = aim + (attack.shotCount === 1 ? 0 : spread * (i / (attack.shotCount - 1) - 0.5));
+            const directionX = Math.cos(angle);
+            const directionY = Math.sin(angle);
+            const muzzleX = x + directionX * attack.spawnDistance;
+            const muzzleY = y + directionY * attack.spawnDistance;
+            if (this.mapCollision.canMoveCircle(x, y, muzzleX, muzzleY, attack.hitRadius)) {
+                this.projectiles?.fireEnemyBolt(enemyId, muzzleX, muzzleY, directionX, directionY, attack);
+            }
+        }
+    }
+
+    private retreat(enemy: EnemyState, dx: number, dy: number, config: Readonly<EnemyConfig>, dt: number): void {
+        const step = config.moveSpeed * dt;
+        const radius = config.bodyRadius + NAVIGATION_CLEARANCE;
+        // Prefer moving directly away. At a wall, try each outward diagonal before holding position.
+        for (const angle of [0, Math.PI / 4, -Math.PI / 4]) {
+            const x = enemy.x + step * (dx * Math.cos(angle) - dy * Math.sin(angle));
+            const y = enemy.y + step * (dx * Math.sin(angle) + dy * Math.cos(angle));
+            if (this.applyEnemyMovement(enemy, x, y, radius, dt)) return;
+        }
+    }
+
     private moveEnemyTowardsPlayer(
         enemy: EnemyState,
         targetPlayer: PlayerState,
         config: Readonly<EnemyConfig>,
+        stopDistance: number,
         deltaSeconds: number
     ): void {
         enemy.velocityX = 0;
         enemy.velocityY = 0;
-
-        const movement = config.movement;
-        // 거리 유지형 이동은 다음 구현 단계에서 추가합니다.
-        if (movement.kind !== "chase") {
-            return;
-        }
-
-        const stopDistance = movement.stopDistance;
 
         const distance = Math.hypot(
             targetPlayer.x - enemy.x, targetPlayer.y - enemy.y);
