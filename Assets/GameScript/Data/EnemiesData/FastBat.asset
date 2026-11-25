@@ -13,13 +13,13 @@ MonoBehaviour:
   m_Name: FastBat
   m_EditorClassIdentifier: Assembly-CSharp::EnemyDefinition
   typeId: 2
-  sprite: {fileID: -6449774987337766431, guid: 5f2de968bbaf1724f8c4b3d19376374f, type: 3}
+  sprite: {fileID: 993302193, guid: 80972ac5a8d00874bb6e1b77347cc326, type: 3}
   moveFrames:
-  - {fileID: -6449774987337766431, guid: 5f2de968bbaf1724f8c4b3d19376374f, type: 3}
-  - {fileID: -7230575767008322368, guid: 62b9cfc5a214eab4eaae5a6b68c38283, type: 3}
+  - {fileID: 993302193, guid: 80972ac5a8d00874bb6e1b77347cc326, type: 3}
+  - {fileID: -624553400, guid: 80972ac5a8d00874bb6e1b77347cc326, type: 3}
   moveAnimationFps: 8
-  moveSpeed: 4
+  moveSpeed: 3.65
   separationRadius: 0.8
   attackRadius: 0.4
-  maxHealth: 15
+  maxHealth: 9
   contactDamage: 4
