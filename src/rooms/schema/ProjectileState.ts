@@ -21,4 +21,7 @@ export class ProjectileState extends Schema {
 
     @type("float32")
     directionY: number = 0;
+
+    @type("boolean")
+    isHealing: boolean = false;
 }

@@ -398,6 +398,37 @@ describe("WSL 인증 HTTP · 실제 MongoDB/Redis · 대기방 WebSocket", funct
         }));
     });
 
+    it("두 클라이언트가 같은 둔화와 표식을 보고 동료의 명중으로 표식이 소모된다", async () => {
+        const { host, guest, room } = await pair();
+        await readyPair(host, guest);
+        await command(host, "room/start");
+        await command(host, "game/loaded");
+        const shooter = room.state.players.get(host.sessionId)!;
+        const ally = room.state.players.get(guest.sessionId)!;
+        shooter.x = ally.x = -6;
+        shooter.y = ally.y = -5;
+        shooter.traitRanks.set("frost_shot", 1);
+        shooter.traitRanks.set("assist_mark", 1);
+        const target = new EnemyState();
+        target.typeId = 3;
+        target.hp = target.maxHp = 100;
+        target.x = -3.5;
+        target.y = -4.75;
+        room.state.enemies.set("trait-target", target);
+        await command(guest, "game/loaded");
+        host.send("input/attack", { aimX: 1, aimY: 0 });
+        await Promise.all([host, guest].map(client => eventually(() => {
+            const enemy = client.state.enemies.get("trait-target");
+            return enemy?.slowed && enemy.marked;
+        }, "둔화 및 표식 미수신")));
+        const expectedHp = target.maxHp - shooter.damage - ally.damage - 6;
+        guest.send("input/attack", { aimX: 1, aimY: 0 });
+        await Promise.all([host, guest].map(client => eventually(() => {
+            const enemy = client.state.enemies.get("trait-target");
+            return enemy?.hp === expectedHp && !enemy.marked;
+        }, "동료의 추가 피해 또는 표식 소모 미수신")));
+    });
+
     it("실제 투사체 처치 시 마지막 타격자의 성장 상태만 소켓으로 전파한다", async () => {
         const { host, guest, room } = await pair();
         await readyPair(host, guest);
@@ -429,16 +460,22 @@ describe("WSL 인증 HTTP · 실제 MongoDB/Redis · 대기방 WebSocket", funct
         assert.equal(guest.state.game.killCount, 10);
         await eventually(() => host.state.players.get(host.sessionId)?.traitDeadline > 0 &&
             guest.state.players.get(guest.sessionId)?.traitDeadline > 0, "team choices not received");
-        assert.equal(guest.state.traitCatalog.length, 3);
+        assert.equal(guest.state.traitCatalog.length, 8);
         assert.equal(guest.state.nextTraitKills, 25);
         const offerId = guest.state.players.get(guest.sessionId).traitOfferId;
-        guest.send("trait/choose", { offerId, traitId: "kill_heal", sessionId: host.sessionId });
-        guest.send("trait/choose", { offerId, traitId: "kill_heal" });
-        host.send("trait/choose", { offerId, traitId: "hurt_grace" });
-        await eventually(() => guest.state.players.get(host.sessionId)?.lastTraitId === "hurt_grace" &&
-            guest.state.players.get(guest.sessionId)?.lastTraitId === "kill_heal", "trait picks not synchronized");
-        assert.equal(guest.state.players.get(guest.sessionId).traitRanks.get("kill_heal"), 1);
-        assert.equal(guest.state.players.get(host.sessionId).traitRanks.has("kill_heal"), false);
+        const hostChoices = Array.from<string>(host.state.players.get(host.sessionId).traitOptions);
+        const guestChoices = Array.from<string>(guest.state.players.get(guest.sessionId).traitOptions);
+        assert.equal(new Set(hostChoices).size, 3);
+        assert.equal(new Set(guestChoices).size, 3);
+        const hostPick = hostChoices[0];
+        const guestPick = guestChoices.find(id => id !== hostPick)!;
+        guest.send("trait/choose", { offerId, traitId: guestPick, sessionId: host.sessionId });
+        guest.send("trait/choose", { offerId, traitId: guestPick });
+        host.send("trait/choose", { offerId, traitId: hostPick });
+        await eventually(() => guest.state.players.get(host.sessionId)?.lastTraitId === hostPick &&
+            guest.state.players.get(guest.sessionId)?.lastTraitId === guestPick, "trait picks not synchronized");
+        assert.equal(guest.state.players.get(guest.sessionId).traitRanks.get(guestPick), 1);
+        assert.equal(guest.state.players.get(host.sessionId).traitRanks.has(guestPick), false);
         assert.equal(guest.state.players.get(guest.sessionId).experience, 0);
         assert.equal(guest.state.enemies.has("growth-target"), false);
     });

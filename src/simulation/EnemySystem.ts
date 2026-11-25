@@ -1,6 +1,7 @@
 import { MyRoomState } from "../rooms/schema/MyRoomState.js";
 import { EnemyState } from "../rooms/schema/EnemyState.js";
 import { PlayerState } from "../rooms/schema/PlayerState.js";
+import { COMBAT_TRAITS } from "../game/CombatTraitConfig.js";
 import { MapCollision, PLAYER_BODY_CENTER_Y } from "./MapCollision.js";
 import type { ProjectileSystem } from "./ProjectileSystem.js";
 import { EnemyNavigation, type NavigationPoint } from "./EnemyNavigation.js";
@@ -32,6 +33,7 @@ interface EnemyKnockbackState {
     velocityX: number;
     velocityY: number;
     remainingSeconds: number;
+    distance: number;
 }
 
 interface EnemyNavigationState {
@@ -54,6 +56,7 @@ export class EnemySystem {
     private readonly knockbackStates =
         new WeakMap<EnemyState, EnemyKnockbackState>();
     private readonly casters = new WeakMap<EnemyState, CasterState>();
+    private readonly frostUntil = new WeakMap<EnemyState, number>();
 
     private pathSearchesRemaining = 0;
 
@@ -84,14 +87,15 @@ export class EnemySystem {
     public applyKnockback(
         enemyId: string,
         directionX: number,
-        directionY: number
+        directionY: number,
+        distance = KNOCKBACK_DISTANCE
     ): void {
         const enemy = this.state.enemies.get(enemyId);
 
         if (enemy === undefined ||
             !enemy.alive ||
             enemy.hp <= 0 ||
-            KNOCKBACK_DISTANCE <= 0 ||
+            !Number.isFinite(distance) || distance <= 0 ||
             KNOCKBACK_DURATION_SECONDS <= 0
         ) {
             return;
@@ -113,19 +117,43 @@ export class EnemySystem {
             return;
         }
 
-        const speed = (KNOCKBACK_DISTANCE * multiplier) / KNOCKBACK_DURATION_SECONDS;
+        // A normal weapon hit cannot interrupt a stronger shield knockback in progress.
+        if ((this.knockbackStates.get(enemy)?.distance ?? 0) > distance) return;
+        const speed = (distance * multiplier) / KNOCKBACK_DURATION_SECONDS;
 
         // 힘을 계속 더하지 않고, 최근 피격 방향과 시간으로 갱신합니다.
         this.knockbackStates.set(enemy, {
             velocityX: directionX / length * speed,
             velocityY: directionY / length * speed,
-            remainingSeconds: KNOCKBACK_DURATION_SECONDS
+            remainingSeconds: KNOCKBACK_DURATION_SECONDS,
+            distance
         });
 
         // 밀려난 뒤 이전 위치에서 계산한 경로를 따라가지 않도록 합니다.
         this.navigationStates.delete(enemy);
         const caster = this.casters.get(enemy);
         if (caster) caster.cast = undefined;
+    }
+
+    public pushAwayFrom(x: number, y: number, radius: number, distance: number): void {
+        for (const [id, enemy] of this.state.enemies) {
+            if (!enemy.alive) continue;
+            const dx = enemy.x - x;
+            const dy = enemy.y - y;
+            if (dx * dx + dy * dy > radius * radius ||
+                !this.mapCollision.canMoveCircle(x, y, enemy.x, enemy.y, 0.001)) continue;
+            // Coincident centers have no radial direction; still push the overlapping enemy out.
+            this.applyKnockback(id, dx === 0 && dy === 0 ? 1 : dx, dy, distance);
+        }
+    }
+
+    public applyFrost(enemy: EnemyState, until: number): void {
+        enemy.slowed = true;
+        this.frostUntil.set(enemy, Math.max(this.frostUntil.get(enemy) ?? 0, until));
+    }
+
+    private moveSpeed(enemy: EnemyState, config: Readonly<EnemyConfig>): number {
+        return enemy.slowed ? config.moveSpeed * (1 - COMBAT_TRAITS.frost_shot.slow) : config.moveSpeed;
     }
 
     public update(
@@ -336,6 +364,10 @@ export class EnemySystem {
     ): void {
         this.state.enemies.forEach(
             (enemy, enemyId) => {
+                if (enemy.slowed && this.state.game.elapsedSeconds >= (this.frostUntil.get(enemy) ?? 0)) {
+                    enemy.slowed = false;
+                    this.frostUntil.delete(enemy);
+                }
                 if (!enemy.alive || enemy.hp <= 0) {
                     enemy.velocityX = 0;
                     enemy.velocityY = 0;
@@ -535,7 +567,7 @@ export class EnemySystem {
     }
 
     private retreat(enemy: EnemyState, dx: number, dy: number, config: Readonly<EnemyConfig>, dt: number): void {
-        const step = config.moveSpeed * dt;
+        const step = this.moveSpeed(enemy, config) * dt;
         const radius = config.bodyRadius + NAVIGATION_CLEARANCE;
         // Prefer moving directly away. At a wall, try each outward diagonal before holding position.
         for (const angle of [0, Math.PI / 4, -Math.PI / 4]) {
@@ -576,7 +608,7 @@ export class EnemySystem {
                 enemy.x, enemy.y, targetPlayer.x, targetPlayer.y, radius)) {
             this.navigationStates.delete(enemy);
             const step = Math.min(
-                config.moveSpeed * deltaSeconds,
+                this.moveSpeed(enemy, config) * deltaSeconds,
                 Math.max(0, distance - stopDistance));
             this.applyEnemyMovement(
                 enemy,
@@ -615,7 +647,7 @@ export class EnemySystem {
         const dx = waypoint.x - enemy.x;
         const dy = waypoint.y - enemy.y;
         const waypointDistance = Math.hypot(dx, dy);
-        const step = Math.min(config.moveSpeed * deltaSeconds, waypointDistance);
+        const step = Math.min(this.moveSpeed(enemy, config) * deltaSeconds, waypointDistance);
         if (!this.applyEnemyMovement(
             enemy,
             enemy.x + dx / waypointDistance * step,

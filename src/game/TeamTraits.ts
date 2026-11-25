@@ -1,6 +1,7 @@
 import type { MyRoomState } from "../rooms/schema/MyRoomState.js";
 import type { PlayerState } from "../rooms/schema/PlayerState.js";
 import { TraitDefinitionState } from "../rooms/schema/TraitDefinitionState.js";
+import { COMBAT_TRAITS } from "./CombatTraitConfig.js";
 
 // Cumulative team kills. After the last milestone, repeat every REPEAT_KILLS.
 const MILESTONES = [10, 25, 45, 70, 100];
@@ -16,7 +17,12 @@ const HURT_GRACE = 0.15;
 const TRAITS = [
     { id: "pierce", title: "Piercing shot", description: "+" + PIERCE + " target per projectile" },
     { id: "kill_heal", title: "Life drain", description: "+" + (DRAIN_TENTHS_PER_RANK / TENTHS_PER_HP) + " HP per kill per rank" },
-    { id: "hurt_grace", title: "Second wind", description: "+" + HURT_GRACE + "s protection after a hit" }
+    { id: "hurt_grace", title: "Second wind", description: "+" + HURT_GRACE + "s protection after a hit" },
+    { id: "frost_shot", title: "Frost shot", description: `First hit slows ${Math.round(COMBAT_TRAITS.frost_shot.slow * 100)}% for ${COMBAT_TRAITS.frost_shot.duration}s. CD ${COMBAT_TRAITS.frost_shot.cooldown}s.` },
+    { id: "shield_shock", title: "Shield shock", description: `On hit: push foes within ${COMBAT_TRAITS.shield_shock.radius} back ${COMBAT_TRAITS.shield_shock.distance}. CD ${COMBAT_TRAITS.shield_shock.cooldown}s.` },
+    { id: "focus_fire", title: "Focused fire", description: `Hit one foe ${COMBAT_TRAITS.focus_fire.hits} times in ${COMBAT_TRAITS.focus_fire.window}s for +${COMBAT_TRAITS.focus_fire.damage} damage.` },
+    { id: "assist_mark", title: "Assist mark", description: `Mark for ${COMBAT_TRAITS.assist_mark.duration}s. An ally's hit deals +${COMBAT_TRAITS.assist_mark.damage}. CD ${COMBAT_TRAITS.assist_mark.cooldown}s.` },
+    { id: "healing_shot", title: "Healing shot", description: `Every ${COMBAT_TRAITS.healing_shot.cooldown}s, fire a shot that heals allies ${COMBAT_TRAITS.healing_shot.heal} HP.` }
 ] as const;
 
 type TraitId = typeof TRAITS[number]["id"];
@@ -48,7 +54,7 @@ export class TeamTraits {
         }
     }
 
-    public update(): void {
+    public update(random: () => number = Math.random): void {
         const game = this.state.game;
         const playing = game.phase === "playing";
         if (playing && this.state.nextTraitKills > 0 && game.killCount >= this.state.nextTraitKills) {
@@ -64,16 +70,32 @@ export class TeamTraits {
                 // Skip pending and missed offers on death. Never grant a posthumous selection.
                 player.traitDeadline = 0;
                 player.traitOfferId = this.round;
+                if (player.traitOptions.length) player.traitOptions.clear();
                 continue;
             }
             if (player.traitDeadline > 0 && game.elapsedSeconds >= player.traitDeadline) {
-                this.grant(player, TRAITS[0].id);
+                const fallback = TRAITS.find(trait => trait.id === player.traitOptions[0]);
+                if (fallback) this.grant(player, fallback.id);
             }
             // A burst of kills can earn several rounds. Each opens its own full window.
             if (player.traitDeadline === 0 && player.traitOfferId < this.round) {
+                this.drawOptions(player, random);
                 player.traitOfferId++;
                 player.traitDeadline = game.elapsedSeconds + CHOICE_SECONDS;
             }
+        }
+    }
+
+    private drawOptions(player: PlayerState, random: () => number): void {
+        const hasAlly = Array.from(this.state.players.values()).some(other => other !== player && other.alive);
+        const pool = TRAITS.filter(trait => {
+            if ((trait.id === "assist_mark" || trait.id === "healing_shot") && !hasAlly) return false;
+            return !(trait.id in COMBAT_TRAITS) || !player.traitRanks.has(trait.id);
+        });
+        player.traitOptions.clear();
+        while (player.traitOptions.length < 3) {
+            const index = Math.floor(random() * pool.length);
+            player.traitOptions.push(pool.splice(index, 1)[0].id);
         }
     }
 
@@ -85,7 +107,7 @@ export class TeamTraits {
         }
         const { offerId, traitId } = message as { offerId?: unknown; traitId?: unknown };
         const selected = TRAITS.find(entry => entry.id === traitId);
-        if (offerId !== player.traitOfferId || !selected) return false;
+        if (offerId !== player.traitOfferId || !selected || !player.traitOptions.includes(selected.id)) return false;
         this.grant(player, selected.id);
         return true;
     }
@@ -94,5 +116,6 @@ export class TeamTraits {
         player.traitRanks.set(id, rank(player, id) + 1);
         player.lastTraitId = id;
         player.traitDeadline = 0;
+        player.traitOptions.clear();
     }
 }

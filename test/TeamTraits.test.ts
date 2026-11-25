@@ -21,8 +21,9 @@ describe("Team trait choices", () => {
         traits.update();
         assert.equal(a.traitDeadline, 0);
         state.game.killCount = 45;
-        traits.update();
-        assert.equal(state.traitCatalog.length, 3);
+        traits.update(() => 0);
+        assert.equal(state.traitCatalog.length, 8);
+        assert.deepEqual(Array.from(a.traitOptions), ["pierce", "kill_heal", "hurt_grace"]);
         assert.equal(state.nextTraitKills, 70);
         assert.equal(a.traitOfferId, 1);
         assert.ok(b.traitDeadline > 0);
@@ -31,7 +32,7 @@ describe("Team trait choices", () => {
         assert.ok(traits.choose("a", pick));
         assert.equal(traits.choose("a", pick), false);
         assert.ok(traits.choose("b", {offerId: 1, traitId: "kill_heal"}));
-        traits.update();
+        traits.update(() => 0);
         assert.equal(a.traitOfferId, 2);
         assert.equal(traits.choose("a", pick), false);
         state.game.elapsedSeconds = a.traitDeadline;
@@ -51,10 +52,42 @@ describe("Team trait choices", () => {
         assert.equal(b.level, 1);
     });
 
+    it("draws three distinct offers, rejects unoffered traits and skips owned unlocks", () => {
+        const { state, a, b, traits } = setup();
+        state.game.killCount = 45;
+        traits.update(() => 0.999);
+        assert.deepEqual(Array.from(a.traitOptions), ["healing_shot", "assist_mark", "focus_fire"]);
+        assert.equal(traits.choose("a", { offerId: 1, traitId: "frost_shot" }), false);
+        assert.ok(traits.choose("a", { offerId: 1, traitId: "healing_shot" }));
+        assert.equal(a.traitOptions.length, 0);
+        state.game.elapsedSeconds = b.traitDeadline;
+        traits.update(() => 0.999);
+        assert.equal(b.traitRanks.get("healing_shot"), 1); // Auto-selected the first displayed offer.
+        for (const player of [a, b]) {
+            assert.ok(!player.traitOptions.includes("healing_shot"));
+            assert.equal(new Set(player.traitOptions).size, 3);
+        }
+    });
+
+    it("offers solo survivors only usable traits even after learning all three solo unlocks", () => {
+        const { state, a, b, traits } = setup();
+        b.alive = false;
+        state.game.killCount = 10;
+        traits.update(() => 0.999);
+        assert.deepEqual(Array.from(a.traitOptions), ["focus_fire", "shield_shock", "frost_shot"]);
+        assert.ok(traits.choose("a", { offerId: 1, traitId: "shield_shock" }));
+        a.traitRanks.set("focus_fire", 1);
+        a.traitRanks.set("frost_shot", 1);
+        state.game.killCount = 25;
+        traits.update(() => 0);
+        assert.deepEqual(Array.from(a.traitOptions), ["pierce", "kill_heal", "hurt_grace"]);
+        assert.equal(b.traitOptions.length, 0);
+    });
+
     it("accumulates 0.1 HP per kill per rank and carries progress across rank upgrades", () => {
         const { state, a, traits } = setup();
         state.game.killCount = 140;
-        traits.update();
+        traits.update(() => 0);
         assert.equal(state.nextTraitKills, 180);
         assert.ok(traits.choose("a", {offerId: 1, traitId: "kill_heal"}));
         a.hp -= 5;
@@ -63,7 +96,7 @@ describe("Team trait choices", () => {
         healOnKill(a);
         assert.equal(a.hp, a.maxHp - 4);
         for (let i = 0; i < 4; i++) healOnKill(a);
-        traits.update();
+        traits.update(() => 0);
         assert.ok(traits.choose("a", {offerId: 2, traitId: "kill_heal"}));
         for (let i = 0; i < 2; i++) healOnKill(a);
         assert.equal(a.hp, a.maxHp - 4);

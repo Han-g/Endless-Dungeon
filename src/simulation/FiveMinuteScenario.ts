@@ -14,10 +14,11 @@ export function startFiveMinuteScenario(state: MyRoomState, simulation: GameSimu
             rewardMonsterKill(player);
             state.game.killCount++;
         }
-        simulation.teamTraits.update();
+        // Keep the replay's default picks reproducible; live offers use the normal random draw.
+        simulation.teamTraits.update(() => 0);
     }
     state.game.elapsedSeconds = START_SECONDS;
-    simulation.teamTraits.update();
+    simulation.teamTraits.update(() => 0);
 
     // Start with one of each for comparison, then use the usual weighted spawns.
     simulation.enemySystem.spawnOne(1);

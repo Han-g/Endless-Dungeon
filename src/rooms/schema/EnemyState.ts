@@ -13,4 +13,6 @@ export class EnemyState extends Schema {
     @type("int32") maxHp: number = 1;
 
     @type("boolean") alive: boolean = true;
+    @type("boolean") slowed: boolean = false;
+    @type("boolean") marked: boolean = false;
 }

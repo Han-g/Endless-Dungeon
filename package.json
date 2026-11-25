@@ -16,7 +16,7 @@
     "clean": "rimraf build",
     "test": "node --import tsx --no-experimental-require-module node_modules/mocha/bin/mocha.js test/*.test.ts --timeout 90000",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:unit": "node --import tsx --no-experimental-require-module node_modules/mocha/bin/mocha.js test/MyRoom.test.ts test/CharacterStats.test.ts test/EnemySpawns.test.ts test/HostileProjectiles.test.ts test/TeamTraits.test.ts --timeout 15000",
+    "test:unit": "node --import tsx --no-experimental-require-module node_modules/mocha/bin/mocha.js test/MyRoom.test.ts test/CharacterStats.test.ts test/EnemySpawns.test.ts test/HostileProjectiles.test.ts test/TeamTraits.test.ts test/CombatTraits.test.ts test/HealingShots.test.ts --timeout 15000",
     "start:production": "node build/index.js",
     "account:create": "tsx src/auth/seed-account.ts"
   },

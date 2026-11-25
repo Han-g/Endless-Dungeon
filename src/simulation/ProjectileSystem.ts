@@ -1,4 +1,5 @@
 import { extraTraitHits } from "../game/TeamTraits.js";
+import { COMBAT_TRAITS } from "../game/CombatTraitConfig.js";
 import { MyRoomState } from "../rooms/schema/MyRoomState.js";
 
 import { ProjectileState } from "../rooms/schema/ProjectileState.js";
@@ -6,7 +7,7 @@ import { getCharacterDefinition, type ProjectileConfig } from "../game/Character
 
 import type { PlayerState } from "../rooms/schema/PlayerState.js";
 import type { EnemyAttackConfig } from "./EnemyCatalog.js";
-import { MapCollision } from "./MapCollision.js";
+import { MapCollision, PLAYER_BODY_CENTER_Y, PLAYER_BODY_HALF_WIDTH } from "./MapCollision.js";
 
 interface AttackInputMessage {
     aimX: number;
@@ -31,10 +32,33 @@ interface RuntimeProjectile {
     remainingHitCount: number;
 
     hitEnemyIds: Set<string>;
+    healing?: { originX: number; originY: number; touchedAllies: Set<string> };
 }
 
 const MAX_PROJECTILES = 512;
 const MAX_DELTA_SECONDS = 0.1;
+
+// Return the fraction of a swept segment at its first contact with a circle.
+export function firstCircleContact(
+    startX: number, startY: number, endX: number, endY: number,
+    circleX: number, circleY: number, radius: number
+): number | undefined {
+    const offsetX = startX - circleX;
+    const offsetY = startY - circleY;
+    const c = offsetX * offsetX + offsetY * offsetY - radius * radius;
+    if (c <= 0) return 0;
+
+    const dx = endX - startX;
+    const dy = endY - startY;
+    const a = dx * dx + dy * dy;
+    const b = offsetX * dx + offsetY * dy;
+    if (a === 0 || b >= 0) return undefined;
+
+    const discriminant = b * b - a * c;
+    if (discriminant < 0) return undefined;
+    const t = c / (-b + Math.sqrt(discriminant));
+    return t <= 1 ? t : undefined;
+}
 
 export class ProjectileSystem {
     private readonly aimInputs =
@@ -42,6 +66,7 @@ export class ProjectileSystem {
 
     private readonly nextFireTimes =
         new Map<string, number>();
+    private readonly nextHealingShot = new WeakMap<PlayerState, number>();
 
     private readonly runtimeProjectiles =
         new Map<string, RuntimeProjectile>();
@@ -110,10 +135,12 @@ export class ProjectileSystem {
             MAX_DELTA_SECONDS
         );
 
+        const tickStart = this.elapsedSeconds;
         this.elapsedSeconds += deltaSeconds;
 
         this.moveProjectiles(deltaSeconds);
         this.spawnProjectiles();
+        this.spawnHealingShots(tickStart);
     }
 
 
@@ -159,16 +186,58 @@ export class ProjectileSystem {
         );
     }
 
+    private spawnHealingShots(tickStart: number): void {
+        if (this.state.game.phase !== "playing") return;
+        const cooldown = COMBAT_TRAITS.healing_shot.cooldown;
+        for (const [sessionId, player] of this.state.players) {
+            if (!player.traitRanks.has("healing_shot") || !player.alive || player.hp <= 0) continue;
+            const due = this.nextHealingShot.get(player);
+            if (due === undefined) {
+                this.nextHealingShot.set(player, tickStart + cooldown);
+                continue;
+            }
+            if (this.elapsedSeconds + 1e-9 < due) continue;
+            // Skip a blocked period instead of accumulating extra projectiles at the cap.
+            this.nextHealingShot.set(player, this.elapsedSeconds + cooldown);
+            if (this.state.projectiles.size >= MAX_PROJECTILES) continue;
+            const weapon = getCharacterDefinition(player.characterId).weapon;
+            const aim = this.aimInputs.get(sessionId) ?? this.aimAtNearestAlly(player, weapon.originOffsetY);
+            this.firePlayerProjectile(sessionId, player, aim, weapon, true);
+        }
+    }
+
+    private aimAtNearestAlly(owner: PlayerState, originOffsetY: number): StoredAimInput {
+        let closest: PlayerState | undefined;
+        let minDistance = Infinity;
+        for (const ally of this.state.players.values()) {
+            if (ally === owner || !ally.alive || ally.hp <= 0) continue;
+            const distance = Math.hypot(ally.x - owner.x, ally.y - owner.y);
+            if (distance < minDistance) {
+                closest = ally;
+                minDistance = distance;
+            }
+        }
+        if (closest) {
+            const dx = closest.x - owner.x;
+            const dy = closest.y + PLAYER_BODY_CENTER_Y - owner.y - originOffsetY;
+            const distance = Math.hypot(dx, dy);
+            if (distance > 0.0001) return { x: dx / distance, y: dy / distance };
+        }
+        return { x: 1, y: 0 };
+    }
+
     private firePlayerProjectile(
         ownerSessionId: string,
         player: PlayerState,
         aim: StoredAimInput,
-        config: ProjectileConfig
+        config: ProjectileConfig,
+        isHealing = false
     ): void {
+        const originY = player.y + config.originOffsetY;
         this.addProjectile(
             ownerSessionId, config.projectileTypeId,
             player.x + aim.x * config.spawnDistance,
-            player.y + config.originOffsetY + aim.y * config.spawnDistance,
+            originY + aim.y * config.spawnDistance,
             aim.x, aim.y,
             {
                 faction: "player",
@@ -176,6 +245,7 @@ export class ProjectileSystem {
                 damage: player.damage,
                 remainingDistance: player.projectileRange,
                 hitRadius: config.hitRadius,
+                healing: isHealing ? { originX: player.x, originY, touchedAllies: new Set<string>() } : undefined,
                 remainingHitCount: Math.max(1,
                     config.maxHitCount + player.bonusProjectileHits + extraTraitHits(player))
             }
@@ -216,6 +286,7 @@ export class ProjectileSystem {
         projectile.y = y;
         projectile.directionX = dirX;
         projectile.directionY = dirY;
+        projectile.isHealing = stats.healing !== undefined;
 
         this.runtimeProjectiles.set(id, {
             ...stats, previousX: x, previousY: y, hitEnemyIds: new Set<string>()
@@ -304,6 +375,35 @@ export class ProjectileSystem {
 
         return runtime?.faction === "player" &&
             !runtime.hitEnemyIds.has(enemyId);
+    }
+
+    public healAlliesOnSegment(projectileId: string, endT: number): void {
+        const runtime = this.runtimeProjectiles.get(projectileId);
+        const healing = runtime?.healing;
+        if (!runtime || !healing) return;
+        const shot = this.state.projectiles.get(projectileId);
+        if (!shot) return;
+
+        // Combat supplies the last enemy impact as endT when pierce runs out mid-tick.
+        const dx = shot.x - runtime.previousX;
+        const dy = shot.y - runtime.previousY;
+        const radius = runtime.hitRadius + PLAYER_BODY_HALF_WIDTH;
+        for (const [sessionId, ally] of this.state.players) {
+            if (sessionId === shot.ownerSessionId || !ally.alive || ally.hp <= 0 ||
+                healing.touchedAllies.has(sessionId)) continue;
+            const centerY = ally.y + PLAYER_BODY_CENTER_Y;
+            const t = firstCircleContact(runtime.previousX, runtime.previousY, shot.x, shot.y,
+                ally.x, centerY, radius);
+            if (t === undefined || t > endT) continue;
+
+            const x = runtime.previousX + t * dx;
+            const y = runtime.previousY + t * dy;
+            this.mapCollision ??= new MapCollision();
+            if (!this.mapCollision.canMoveCircle(healing.originX, healing.originY, x, y, runtime.hitRadius) ||
+                !this.mapCollision.canMoveCircle(x, y, ally.x, centerY, 0.001)) continue;
+            healing.touchedAllies.add(sessionId);
+            ally.hp = Math.min(ally.maxHp, ally.hp + COMBAT_TRAITS.healing_shot.heal);
+        }
     }
 
     public recordEnemyHit(

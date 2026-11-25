@@ -1,9 +1,11 @@
 import { MyRoomState } from "../rooms/schema/MyRoomState.js";
 import type { PlayerState } from "../rooms/schema/PlayerState.js";
+import type { EnemyState } from "../rooms/schema/EnemyState.js";
 
 import { EnemySystem } from "./EnemySystem.js";
 
-import { ProjectileSystem } from "./ProjectileSystem.js";
+import { firstCircleContact, ProjectileSystem } from "./ProjectileSystem.js";
+import { CombatTraits } from "./CombatTraits.js";
 import { PLAYER_BODY_CENTER_Y, PLAYER_BODY_HALF_WIDTH } from "./MapCollision.js";
 
 import { healOnKill, extraHurtGrace } from "../game/TeamTraits.js";
@@ -13,6 +15,7 @@ const MAX_DELTA_SECONDS = 0.1;
 const PLAYER_HURT_INVULNERABILITY_SECONDS = 0.75;
 
 export class CombatSystem {
+    private readonly traits: CombatTraits;
     /*
      * 접촉 피해와 적 투사체가 함께 사용하는 플레이어별 피격 무적입니다.
      *
@@ -31,6 +34,7 @@ export class CombatSystem {
 
         private readonly projectileSystem: ProjectileSystem
     ) {
+        this.traits = new CombatTraits(state, enemySystem);
     }
 
     public update(
@@ -51,6 +55,7 @@ export class CombatSystem {
             return;
         }
 
+        this.traits.expireMarks();
         this.resolveProjectileHits();
 
         this.resolveEnemyContactDamage();
@@ -111,59 +116,21 @@ export class CombatSystem {
                 continue;
             }
 
-            for (
-                const [enemyId, enemy]
-                of this.state.enemies.entries()
-            ) {
-                if (
-                    !enemy.alive ||
-                    killedEnemies.has(enemyId)
-                ) {
-                    continue;
-                }
-
-                const enemyConfig =
-                    this.enemySystem.getConfig(
-                        enemy.typeId);
-
-                if (enemyConfig === undefined) {
-                    continue;
-                }
-
-                if (
-                    !this.projectileSystem.canHitEnemy(
-                        projectileId,
-                        enemyId)
-                ) {
-                    continue;
-                }
-
-                const collisionRadius =
-                    runtime.hitRadius +
-                    enemyConfig.bodyRadius;
-
-                if (this.firstCircleContact(
-                    runtime.previousX,
-                    runtime.previousY,
-                    projectile.x,
-                    projectile.y,
-                    enemy.x,
-                    enemy.y,
-                    collisionRadius
-                ) === undefined) {
-                    continue;
-                }
-
-                enemy.hp =
-                    Math.max(
-                        0,
-                        enemy.hp -
-                        runtime.damage
-                    );
-
-                // this.projectileSystem
-                //     .removeProjectile(
-                //         projectileId);
+            const contacts: { enemyId: string; enemy: EnemyState; time: number }[] = [];
+            for (const [enemyId, enemy] of this.state.enemies.entries()) {
+                if (!enemy.alive || !this.projectileSystem.canHitEnemy(projectileId, enemyId)) continue;
+                const config = this.enemySystem.getConfig(enemy.typeId);
+                if (!config) continue;
+                const time = firstCircleContact(runtime.previousX, runtime.previousY, projectile.x, projectile.y,
+                    enemy.x, enemy.y, runtime.hitRadius + config.bodyRadius);
+                if (time !== undefined) contacts.push({ enemyId, enemy, time });
+            }
+            // The first enemy on the actual path receives first-hit traits and spends pierce first.
+            contacts.sort((a, b) => a.time - b.time);
+            let stopTime: number | undefined;
+            for (const { enemyId, enemy, time } of contacts) {
+                const extra = this.traits.onWeaponHit(projectile.ownerSessionId, enemy, runtime.hitEnemyIds.size === 0);
+                enemy.hp = Math.max(0, enemy.hp - runtime.damage - extra);
 
                 if (enemy.hp <= 0) {
                     enemy.hp = 0;
@@ -190,12 +157,12 @@ export class CombatSystem {
                         enemyId);
 
                 if (hitLimitReached) {
-                    this.projectileSystem.removeProjectile(
-                        projectileId);
-
+                    stopTime = time;
                     break;
                 }
             }
+            this.projectileSystem.healAlliesOnSegment(projectileId, stopTime ?? 1);
+            if (stopTime !== undefined) this.projectileSystem.removeProjectile(projectileId);
         }
 
         for (const [enemyId, ownerSessionId]
@@ -296,7 +263,9 @@ export class CombatSystem {
     }
 
     private damagePlayer(sessionId: string, player: PlayerState, damage: number, now: number): void {
+        const previousHp = player.hp;
         player.hp = Math.max(0, player.hp - damage);
+        if (player.hp < previousHp) this.traits.onPlayerHurt(player);
         this.nextPlayerDamageTimes.set(
             sessionId, now + PLAYER_HURT_INVULNERABILITY_SECONDS + extraHurtGrace(player)
         );
@@ -314,7 +283,7 @@ export class CombatSystem {
         let firstTime = Infinity;
         for (const [sessionId, player] of this.state.players.entries()) {
             if (!player.alive) continue;
-            const t = this.firstCircleContact(
+            const t = firstCircleContact(
                 startX, startY, endX, endY, player.x, player.y + PLAYER_BODY_CENTER_Y, radius
             );
             if (t !== undefined && t < firstTime) {
@@ -323,28 +292,6 @@ export class CombatSystem {
             }
         }
         return first;
-    }
-
-    // 선분에서 원에 처음 닿는 위치를 0~1로 반환한다. 시작점이 원 안이면 0이다.
-    private firstCircleContact(
-        startX: number, startY: number, endX: number, endY: number,
-        circleX: number, circleY: number, radius: number
-    ): number | undefined {
-        const offsetX = startX - circleX;
-        const offsetY = startY - circleY;
-        const c = offsetX * offsetX + offsetY * offsetY - radius * radius;
-        if (c <= 0) return 0;
-
-        const dx = endX - startX;
-        const dy = endY - startY;
-        const a = dx * dx + dy * dy;
-        const b = offsetX * dx + offsetY * dy;
-        if (a === 0 || b >= 0) return undefined;
-
-        const discriminant = b * b - a * c;
-        if (discriminant < 0) return undefined;
-        const t = c / (-b + Math.sqrt(discriminant));
-        return t <= 1 ? t : undefined;
     }
 
     public removePlayer(sessionId: string): void {
