@@ -183,24 +183,24 @@ describe("Enemy encounters", () => {
         assert.equal(fight.enemy.x, -8);
         assert.equal(fight.bolts().length, 0);
         fight.player.y += 2;
-        fight.advance(3); // 0.30s since the first cast began on tick one.
+        fight.advance(2); // 0.25s since the first cast began on tick one.
         assert.equal(fight.bolts().length, 0);
-        fight.advance(1); // First 50ms tick past the 0.325s windup.
+        fight.advance(1); // Fires at 0.30s after locking the aim.
         const [shot] = fight.bolts();
         assert.ok(shot);
         assert.equal(shot.projectileTypeId, 5);
         assert.ok(shot.directionX > 0.99 && Math.abs(shot.directionY) < 0.05);
         const laterShots = () => fight.bolts().filter(bolt => bolt !== shot);
-        fight.advance(53);
+        fight.advance(39);
         assert.equal(fight.player.hp, hp);
         assert.equal(laterShots().length, 0);
-        fight.advance(1); // 54 ticks (2.70s) between shots.
+        fight.advance(1); // 40 ticks (2.00s) between shots.
         assert.equal(laterShots().length, 1);
     });
 
     it("resumes chasing after the caster's 0.2s recovery", () => {
         const fight = encounter(4, 5);
-        fight.advance(8);
+        fight.advance(7);
         assert.equal(fight.bolts().length, 1);
         const startX = fight.enemy.x;
         fight.player.x = startX + 8;

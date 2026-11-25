@@ -1,5 +1,5 @@
 import { extraTraitHits } from "../game/TeamTraits.js";
-import { COMBAT_TRAITS } from "../game/CombatTraitConfig.js";
+import { COMBAT_TRAITS, combatTraitEffect } from "../game/CombatTraitConfig.js";
 import { MyRoomState } from "../rooms/schema/MyRoomState.js";
 
 import { ProjectileState } from "../rooms/schema/ProjectileState.js";
@@ -32,7 +32,7 @@ interface RuntimeProjectile {
     remainingHitCount: number;
 
     hitEnemyIds: Set<string>;
-    healing?: { originX: number; originY: number; touchedAllies: Set<string> };
+    healing?: { originX: number; originY: number; amount: number; touchedAllies: Set<string> };
 }
 
 const MAX_PROJECTILES = 512;
@@ -190,7 +190,8 @@ export class ProjectileSystem {
         if (this.state.game.phase !== "playing") return;
         const cooldown = COMBAT_TRAITS.healing_shot.cooldown;
         for (const [sessionId, player] of this.state.players) {
-            if (!player.traitRanks.has("healing_shot") || !player.alive || player.hp <= 0) continue;
+            const rank = player.traitRanks.get("healing_shot") ?? 0;
+            if (rank <= 0 || !player.alive || player.hp <= 0) continue;
             const due = this.nextHealingShot.get(player);
             if (due === undefined) {
                 this.nextHealingShot.set(player, tickStart + cooldown);
@@ -202,7 +203,7 @@ export class ProjectileSystem {
             if (this.state.projectiles.size >= MAX_PROJECTILES) continue;
             const weapon = getCharacterDefinition(player.characterId).weapon;
             const aim = this.aimInputs.get(sessionId) ?? this.aimAtNearestAlly(player, weapon.originOffsetY);
-            this.firePlayerProjectile(sessionId, player, aim, weapon, true);
+            this.firePlayerProjectile(sessionId, player, aim, weapon, combatTraitEffect("healing_shot", rank).heal);
         }
     }
 
@@ -231,7 +232,7 @@ export class ProjectileSystem {
         player: PlayerState,
         aim: StoredAimInput,
         config: ProjectileConfig,
-        isHealing = false
+        healingAmount = 0
     ): void {
         const originY = player.y + config.originOffsetY;
         this.addProjectile(
@@ -245,7 +246,9 @@ export class ProjectileSystem {
                 damage: player.damage,
                 remainingDistance: player.projectileRange,
                 hitRadius: config.hitRadius,
-                healing: isHealing ? { originX: player.x, originY, touchedAllies: new Set<string>() } : undefined,
+                healing: healingAmount > 0
+                    ? { originX: player.x, originY, amount: healingAmount, touchedAllies: new Set<string>() }
+                    : undefined,
                 remainingHitCount: Math.max(1,
                     config.maxHitCount + player.bonusProjectileHits + extraTraitHits(player))
             }
@@ -402,7 +405,7 @@ export class ProjectileSystem {
             if (!this.mapCollision.canMoveCircle(healing.originX, healing.originY, x, y, runtime.hitRadius) ||
                 !this.mapCollision.canMoveCircle(x, y, ally.x, centerY, 0.001)) continue;
             healing.touchedAllies.add(sessionId);
-            ally.hp = Math.min(ally.maxHp, ally.hp + COMBAT_TRAITS.healing_shot.heal);
+            ally.hp = Math.min(ally.maxHp, ally.hp + healing.amount);
         }
     }
 

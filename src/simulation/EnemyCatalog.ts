@@ -150,7 +150,7 @@ export const ENEMY_CONFIGS:
                 attack: {
                     kind: "projectile", projectileTypeId: 5,
                     damage: 7, speed: 3.9, range: 24, hitRadius: 0.15,
-                    attackRange: 6.5, windupSeconds: 0.325, recoverySeconds: 0.2, cooldownSeconds: 2.7,
+                    attackRange: 6.5, windupSeconds: 0.3, recoverySeconds: 0.2, cooldownSeconds: 2,
                     shotCount: 1, spreadDegrees: 0,
                     originOffsetX: 0, originOffsetY: 0.25, spawnDistance: 0
                 }

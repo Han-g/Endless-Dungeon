@@ -89,6 +89,49 @@ describe("Weapon hit and damage-response traits", () => {
         assert.equal(near.marked, false);
     });
 
+    it("uses the strongest active frost rank and falls back when that source expires", () => {
+        const { state, player, enemy, enemies } = encounter();
+        const strong = player("strong"), weaker = player("weaker");
+        strong.traitRanks.set("frost_shot", 3);
+        weaker.traitRanks.set("frost_shot", 2);
+        const bat = enemy("bat", -5, -5, 2);
+        const traits = new CombatTraits(state, enemies);
+        const speedAt = (time: number) => {
+            state.game.elapsedSeconds = time;
+            enemies.update(50);
+            return Math.hypot(bat.velocityX, bat.velocityY);
+        };
+        state.game.elapsedSeconds = 1;
+        traits.onWeaponHit("strong", bat, true);
+        state.game.elapsedSeconds = 1.5;
+        traits.onWeaponHit("weaker", bat, true);
+        assert.ok(Math.abs(speedAt(1.51) - 3.65 * 0.7) < 0.0001);
+        assert.ok(Math.abs(speedAt(2.21) - 3.65 * 0.75) < 0.0001);
+        assert.ok(bat.slowed);
+        assert.ok(Math.abs(speedAt(2.71) - 3.65) < 0.0001);
+        assert.equal(bat.slowed, false);
+    });
+
+    it("uses focused fire's current rank and the marker's rank at application", () => {
+        const { state, player, enemy, enemies } = encounter();
+        const focus = player("focus"), marker = player("marker");
+        const target = enemy("target", -5, -5);
+        const traits = new CombatTraits(state, enemies);
+        for (const [rank, damage] of [[2, 8], [3, 10], [99, 10]]) {
+            focus.traitRanks.set("focus_fire", rank);
+            assert.equal(traits.onWeaponHit("focus", target, true), 0);
+            assert.equal(traits.onWeaponHit("focus", target, true), 0);
+            assert.equal(traits.onWeaponHit("focus", target, true), damage);
+        }
+        marker.traitRanks.set("assist_mark", 2);
+        traits.onWeaponHit("marker", target, true);
+        marker.traitRanks.set("assist_mark", 3);
+        assert.equal(traits.onWeaponHit("focus", target, true), 9);
+        state.game.elapsedSeconds = 6;
+        traits.onWeaponHit("marker", target, true);
+        assert.equal(traits.onWeaponHit("focus", target, true), 12);
+    });
+
     it("groups three separate weapon hits per shooter and target in a sliding five-second window", () => {
         const { state, player, enemy, enemies } = encounter();
         const alice = player("a"), bob = player("b");
@@ -180,6 +223,27 @@ describe("Weapon hit and damage-response traits", () => {
         hostile(guard.x, guard.y);
         enemies.update(50);
         assert.ok(slime.x > -6);
+    });
+
+    it("reduces shield cooldown to seven and six seconds as the rank increases", () => {
+        const { state, player, enemy, enemies } = encounter();
+        const guard = player("guard");
+        const slime = enemy("slime", -7.2, -5);
+        const traits = new CombatTraits(state, enemies);
+        const pushedAt = (time: number) => {
+            state.game.elapsedSeconds = time;
+            slime.x = -7.2;
+            traits.onPlayerHurt(guard);
+            for (let i = 0; i < 3; i++) enemies.update(50);
+            return Math.abs(slime.x - (-7.2 + 5)) < 0.001;
+        };
+        guard.traitRanks.set("shield_shock", 2);
+        assert.ok(pushedAt(0));
+        assert.equal(pushedAt(6.99), false);
+        assert.ok(pushedAt(7));
+        guard.traitRanks.set("shield_shock", 3);
+        assert.equal(pushedAt(12.99), false);
+        assert.ok(pushedAt(13));
     });
 
     it("stops a shield knockback at a thin Map1 wall", () => {

@@ -52,9 +52,9 @@ describe("Team trait choices", () => {
         assert.equal(b.level, 1);
     });
 
-    it("draws three distinct offers, rejects unoffered traits and skips owned unlocks", () => {
+    it("offers further ranks to the owner until the cap and rejects unoffered traits", () => {
         const { state, a, b, traits } = setup();
-        state.game.killCount = 45;
+        state.game.killCount = 70;
         traits.update(() => 0.999);
         assert.deepEqual(Array.from(a.traitOptions), ["healing_shot", "assist_mark", "focus_fire"]);
         assert.equal(traits.choose("a", { offerId: 1, traitId: "frost_shot" }), false);
@@ -64,24 +64,58 @@ describe("Team trait choices", () => {
         traits.update(() => 0.999);
         assert.equal(b.traitRanks.get("healing_shot"), 1); // Auto-selected the first displayed offer.
         for (const player of [a, b]) {
-            assert.ok(!player.traitOptions.includes("healing_shot"));
+            assert.ok(player.traitOptions.includes("healing_shot"));
             assert.equal(new Set(player.traitOptions).size, 3);
         }
+        for (const offerId of [2, 3]) {
+            assert.ok(traits.choose("a", { offerId, traitId: "healing_shot" }));
+            traits.update(() => 0.999);
+        }
+        assert.equal(a.traitRanks.get("healing_shot"), 3);
+        assert.ok(!a.traitOptions.includes("healing_shot"));
+        assert.equal(traits.choose("a", { offerId: 4, traitId: "healing_shot" }), false);
     });
 
-    it("offers solo survivors only usable traits even after learning all three solo unlocks", () => {
+    it("offers two, one, then zero choices when a solo survivor reaches every available cap", () => {
         const { state, a, b, traits } = setup();
         b.alive = false;
+        a.traitRanks.set("pierce", 2);
+        a.traitRanks.set("kill_heal", 4);
+        a.traitRanks.set("hurt_grace", 3);
+        a.traitRanks.set("frost_shot", 2);
+        a.traitRanks.set("shield_shock", 3);
+        a.traitRanks.set("focus_fire", 3);
+        state.game.killCount = 70;
+        traits.update(() => 0);
+        assert.deepEqual(Array.from(a.traitOptions), ["kill_heal", "frost_shot"]);
+        assert.equal(traits.choose("a", { offerId: 1, traitId: "pierce" }), false);
+        assert.ok(traits.choose("a", { offerId: 1, traitId: "frost_shot" }));
+        traits.update();
+        assert.deepEqual(Array.from(a.traitOptions), ["kill_heal"]);
+        state.game.elapsedSeconds = a.traitDeadline;
+        traits.update();
+        assert.equal(a.traitRanks.get("kill_heal"), 5);
+        assert.equal(a.traitDeadline, 0);
+        assert.equal(a.traitOptions.length, 0);
+        assert.equal(traits.choose("a", { offerId: a.traitOfferId, traitId: "kill_heal" }), false);
+        assert.equal(b.traitOptions.length, 0);
+    });
+
+    it("removes coop traits from an open choice after the last ally dies", () => {
+        const { state, a, b, traits } = setup();
         state.game.killCount = 10;
         traits.update(() => 0.999);
-        assert.deepEqual(Array.from(a.traitOptions), ["focus_fire", "shield_shock", "frost_shot"]);
-        assert.ok(traits.choose("a", { offerId: 1, traitId: "shield_shock" }));
-        a.traitRanks.set("focus_fire", 1);
-        a.traitRanks.set("frost_shot", 1);
-        state.game.killCount = 25;
-        traits.update(() => 0);
-        assert.deepEqual(Array.from(a.traitOptions), ["pierce", "kill_heal", "hurt_grace"]);
-        assert.equal(b.traitOptions.length, 0);
+        const deadline = a.traitDeadline;
+        assert.deepEqual(Array.from(a.traitOptions), ["healing_shot", "assist_mark", "focus_fire"]);
+        b.alive = false;
+        assert.equal(traits.choose("a", { offerId: 1, traitId: "assist_mark" }), false);
+        traits.update();
+        assert.deepEqual(Array.from(a.traitOptions), ["focus_fire"]);
+        assert.equal(a.traitDeadline, deadline);
+        state.game.elapsedSeconds = deadline;
+        traits.update();
+        assert.equal(a.traitRanks.get("focus_fire"), 1);
+        assert.equal(a.traitDeadline, 0);
     });
 
     it("accumulates 0.1 HP per kill per rank and carries progress across rank upgrades", () => {
@@ -106,12 +140,23 @@ describe("Team trait choices", () => {
         assert.equal(a.hp, a.maxHp - 2);
     });
 
-    it("discards excess drain at full HP and cannot revive a dead player", () => {
-        const { a } = setup();
+    it("clamps legacy ranks and discards excess drain at full HP or death", () => {
+        const { state, a, traits } = setup();
         a.hp--;
         a.traitRanks.set("kill_heal", 12);
+        a.traitRanks.set("pierce", 9);
+        a.traitRanks.set("hurt_grace", 8);
+        assert.equal(extraTraitHits(a), 2);
+        assert.ok(Math.abs(extraHurtGrace(a) - 0.45) < 1e-9);
+        healOnKill(a); // Even legacy ranks above the new cap heal at most 0.5 HP per kill.
+        assert.equal(a.hp, a.maxHp - 1);
         healOnKill(a);
         assert.equal(a.hp, a.maxHp);
+        state.game.killCount = 10;
+        traits.update();
+        assert.equal(a.traitRanks.get("kill_heal"), 5);
+        assert.equal(a.traitRanks.get("pierce"), 2);
+        assert.equal(a.traitRanks.get("hurt_grace"), 3);
         for (let i = 0; i < 9; i++) healOnKill(a);
         a.hp -= 3;
         a.traitRanks.set("kill_heal", 1);

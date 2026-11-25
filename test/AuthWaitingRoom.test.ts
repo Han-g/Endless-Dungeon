@@ -358,7 +358,8 @@ describe("WSL 인증 HTTP · 실제 MongoDB/Redis · 대기방 WebSocket", funct
                 assert.equal(player.level, 3);
                 assert.equal(player.experience, 500);
                 assert.equal(player.killCount, 50);
-                assert.equal(player.traitRanks.get("pierce"), 5);
+                assert.equal(player.traitRanks.get("pierce"), 2);
+                assert.equal(player.traitRanks.get("kill_heal"), 3);
                 assert.equal(player.traitDeadline, 0);
             }
         }
@@ -440,6 +441,11 @@ describe("WSL 인증 HTTP · 실제 MongoDB/Redis · 대기방 WebSocket", funct
         const startXp = Math.max(0, LEVEL_XP[1] - XP_PER_KILL);
         shooter.experience = startXp;
         room.state.game.killCount = 9;
+        // The guest has only drain left to learn. The host still has all eight candidates.
+        const guestPlayer = room.state.players.get(guest.sessionId)!;
+        for (const entry of room.state.traitCatalog) {
+            if (entry.id !== "kill_heal") guestPlayer.traitRanks.set(entry.id, entry.maxRank);
+        }
         const startKills = shooter.killCount;
         const maxHp = shooter.maxHp;
         const enemy = new EnemyState();
@@ -461,14 +467,20 @@ describe("WSL 인증 HTTP · 실제 MongoDB/Redis · 대기방 WebSocket", funct
         await eventually(() => host.state.players.get(host.sessionId)?.traitDeadline > 0 &&
             guest.state.players.get(guest.sessionId)?.traitDeadline > 0, "team choices not received");
         assert.equal(guest.state.traitCatalog.length, 8);
+        for (const entry of guest.state.traitCatalog) {
+            const expectedMax = entry.id === "kill_heal" ? 5 : entry.id === "pierce" ? 2 : 3;
+            assert.equal(entry.maxRank, expectedMax);
+            assert.equal(entry.rankDescriptions.length, expectedMax);
+            for (const description of entry.rankDescriptions) assert.ok(description.length > 0);
+        }
         assert.equal(guest.state.nextTraitKills, 25);
         const offerId = guest.state.players.get(guest.sessionId).traitOfferId;
         const hostChoices = Array.from<string>(host.state.players.get(host.sessionId).traitOptions);
         const guestChoices = Array.from<string>(guest.state.players.get(guest.sessionId).traitOptions);
         assert.equal(new Set(hostChoices).size, 3);
-        assert.equal(new Set(guestChoices).size, 3);
-        const hostPick = hostChoices[0];
-        const guestPick = guestChoices.find(id => id !== hostPick)!;
+        assert.deepEqual(guestChoices, ["kill_heal"]);
+        const guestPick = guestChoices[0];
+        const hostPick = hostChoices.find(id => id !== guestPick)!;
         guest.send("trait/choose", { offerId, traitId: guestPick, sessionId: host.sessionId });
         guest.send("trait/choose", { offerId, traitId: guestPick });
         host.send("trait/choose", { offerId, traitId: hostPick });

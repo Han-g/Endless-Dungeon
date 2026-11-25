@@ -56,7 +56,8 @@ export class EnemySystem {
     private readonly knockbackStates =
         new WeakMap<EnemyState, EnemyKnockbackState>();
     private readonly casters = new WeakMap<EnemyState, CasterState>();
-    private readonly frostUntil = new WeakMap<EnemyState, number>();
+    // Separate expiry times let a weaker slow resume when a stronger one ends.
+    private readonly frostByStrength = new WeakMap<EnemyState, Map<number, number>>();
 
     private pathSearchesRemaining = 0;
 
@@ -147,13 +148,31 @@ export class EnemySystem {
         }
     }
 
-    public applyFrost(enemy: EnemyState, until: number): void {
+    public applyFrost(enemy: EnemyState, until: number, slow: number = COMBAT_TRAITS.frost_shot.slow): void {
+        let active = this.frostByStrength.get(enemy);
+        if (!active) {
+            active = new Map<number, number>();
+            this.frostByStrength.set(enemy, active);
+        }
+        active.set(slow, Math.max(active.get(slow) ?? 0, until));
         enemy.slowed = true;
-        this.frostUntil.set(enemy, Math.max(this.frostUntil.get(enemy) ?? 0, until));
     }
 
     private moveSpeed(enemy: EnemyState, config: Readonly<EnemyConfig>): number {
-        return enemy.slowed ? config.moveSpeed * (1 - COMBAT_TRAITS.frost_shot.slow) : config.moveSpeed;
+        const active = this.frostByStrength.get(enemy);
+        return active ? config.moveSpeed * (1 - Math.max(...active.keys())) : config.moveSpeed;
+    }
+
+    private expireFrost(enemy: EnemyState): void {
+        const active = this.frostByStrength.get(enemy);
+        if (!active) return;
+        for (const [slow, until] of active) {
+            if (this.state.game.elapsedSeconds >= until) active.delete(slow);
+        }
+        if (active.size === 0) {
+            this.frostByStrength.delete(enemy);
+            enemy.slowed = false;
+        }
     }
 
     public update(
@@ -364,10 +383,7 @@ export class EnemySystem {
     ): void {
         this.state.enemies.forEach(
             (enemy, enemyId) => {
-                if (enemy.slowed && this.state.game.elapsedSeconds >= (this.frostUntil.get(enemy) ?? 0)) {
-                    enemy.slowed = false;
-                    this.frostUntil.delete(enemy);
-                }
+                this.expireFrost(enemy);
                 if (!enemy.alive || enemy.hp <= 0) {
                     enemy.velocityX = 0;
                     enemy.velocityY = 0;

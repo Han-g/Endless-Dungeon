@@ -1,7 +1,7 @@
 import type { MyRoomState } from "../rooms/schema/MyRoomState.js";
 import type { PlayerState } from "../rooms/schema/PlayerState.js";
 import { TraitDefinitionState } from "../rooms/schema/TraitDefinitionState.js";
-import { COMBAT_TRAITS } from "./CombatTraitConfig.js";
+import { MAX_TRAIT_RANK, combatTraitEffect, type TraitId } from "./CombatTraitConfig.js";
 
 // Cumulative team kills. After the last milestone, repeat every REPEAT_KILLS.
 const MILESTONES = [10, 25, 45, 70, 100];
@@ -14,19 +14,39 @@ const DRAIN_TENTHS_PER_RANK = 1;
 // HP is synchronized as an integer. Fractional healing belongs to this player's current life.
 const pendingDrainTenths = new WeakMap<PlayerState, number>();
 const HURT_GRACE = 0.15;
-const TRAITS = [
-    { id: "pierce", title: "Piercing shot", description: "+" + PIERCE + " target per projectile" },
-    { id: "kill_heal", title: "Life drain", description: "+" + (DRAIN_TENTHS_PER_RANK / TENTHS_PER_HP) + " HP per kill per rank" },
-    { id: "hurt_grace", title: "Second wind", description: "+" + HURT_GRACE + "s protection after a hit" },
-    { id: "frost_shot", title: "Frost shot", description: `First hit slows ${Math.round(COMBAT_TRAITS.frost_shot.slow * 100)}% for ${COMBAT_TRAITS.frost_shot.duration}s. CD ${COMBAT_TRAITS.frost_shot.cooldown}s.` },
-    { id: "shield_shock", title: "Shield shock", description: `On hit: push foes within ${COMBAT_TRAITS.shield_shock.radius} back ${COMBAT_TRAITS.shield_shock.distance}. CD ${COMBAT_TRAITS.shield_shock.cooldown}s.` },
-    { id: "focus_fire", title: "Focused fire", description: `Hit one foe ${COMBAT_TRAITS.focus_fire.hits} times in ${COMBAT_TRAITS.focus_fire.window}s for +${COMBAT_TRAITS.focus_fire.damage} damage.` },
-    { id: "assist_mark", title: "Assist mark", description: `Mark for ${COMBAT_TRAITS.assist_mark.duration}s. An ally's hit deals +${COMBAT_TRAITS.assist_mark.damage}. CD ${COMBAT_TRAITS.assist_mark.cooldown}s.` },
-    { id: "healing_shot", title: "Healing shot", description: `Every ${COMBAT_TRAITS.healing_shot.cooldown}s, fire a shot that heals allies ${COMBAT_TRAITS.healing_shot.heal} HP.` }
-] as const;
+const TRAITS: readonly { id: TraitId; title: string; describe: (rank: number) => string }[] = [
+    { id: "pierce", title: "Piercing shot", describe: r => `Additional targets per shot: ${PIERCE * r}` },
+    { id: "kill_heal", title: "Life drain", describe: r => `Restore ${DRAIN_TENTHS_PER_RANK * r / TENTHS_PER_HP} HP per kill.` },
+    { id: "hurt_grace", title: "Second wind", describe: r => `+${(HURT_GRACE * r).toFixed(2)}s protection after a hit.` },
+    { id: "frost_shot", title: "Frost shot", describe: r => {
+        const e = combatTraitEffect("frost_shot", r);
+        return `Slow ${Math.round(e.slow * 100)}% for ${e.duration}s. CD ${e.cooldown}s.`;
+    } },
+    { id: "shield_shock", title: "Shield shock", describe: r => {
+        const e = combatTraitEffect("shield_shock", r);
+        return `When hurt, push foes within ${e.radius} back ${e.distance}. CD ${e.cooldown}s.`;
+    } },
+    { id: "focus_fire", title: "Focused fire", describe: r => {
+        const e = combatTraitEffect("focus_fire", r);
+        return `Hit one foe ${e.hits} times in ${e.window}s for +${e.damage} damage.`;
+    } },
+    { id: "assist_mark", title: "Assist mark", describe: r => {
+        const e = combatTraitEffect("assist_mark", r);
+        return `Mark for ${e.duration}s. An ally's hit deals +${e.damage}. CD ${e.cooldown}s.`;
+    } },
+    { id: "healing_shot", title: "Healing shot", describe: r => {
+        const e = combatTraitEffect("healing_shot", r);
+        return `Every ${e.cooldown}s, fire a shot that heals allies ${e.heal} HP.`;
+    } }
+];
 
-type TraitId = typeof TRAITS[number]["id"];
-const rank = (player: PlayerState, id: TraitId) => player.traitRanks.get(id) ?? 0;
+const rank = (player: PlayerState, id: TraitId) =>
+    Math.min(MAX_TRAIT_RANK[id], player.traitRanks.get(id) ?? 0);
+
+function canUpgrade(player: PlayerState, id: TraitId, hasAlly: boolean): boolean {
+    if (!hasAlly && (id === "assist_mark" || id === "healing_shot")) return false;
+    return rank(player, id) < MAX_TRAIT_RANK[id];
+}
 export const extraTraitHits = (player: PlayerState) => PIERCE * rank(player, "pierce");
 export const extraHurtGrace = (player: PlayerState) => HURT_GRACE * rank(player, "hurt_grace");
 
@@ -46,11 +66,18 @@ export function healOnKill(player: PlayerState): void {
 
 export class TeamTraits {
     private round = 0;
+    private readonly initializedPlayers = new WeakSet<PlayerState>();
 
     public constructor(private readonly state: MyRoomState) {
         state.nextTraitKills = MILESTONES[0];
         for (const entry of TRAITS) {
-            state.traitCatalog.push(Object.assign(new TraitDefinitionState(), entry));
+            const definition = new TraitDefinitionState();
+            definition.id = entry.id;
+            definition.title = entry.title;
+            definition.maxRank = MAX_TRAIT_RANK[entry.id];
+            for (let r = 1; r <= definition.maxRank; r++) definition.rankDescriptions.push(entry.describe(r));
+            definition.description = definition.rankDescriptions[0];
+            state.traitCatalog.push(definition);
         }
     }
 
@@ -65,7 +92,18 @@ export class TeamTraits {
             this.state.nextTraitKills = next <= 0xffffffff ? next : 0;
         }
 
+        let survivors = 0;
+        for (const player of this.state.players.values()) if (player.alive) survivors++;
+        const hasAlly = survivors > 1;
         for (const player of this.state.players.values()) {
+            if (!this.initializedPlayers.has(player)) {
+                for (const { id } of TRAITS) {
+                    if ((player.traitRanks.get(id) ?? 0) > MAX_TRAIT_RANK[id]) {
+                        player.traitRanks.set(id, MAX_TRAIT_RANK[id]);
+                    }
+                }
+                this.initializedPlayers.add(player);
+            }
             if (!playing || !player.alive) {
                 // Skip pending and missed offers on death. Never grant a posthumous selection.
                 player.traitDeadline = 0;
@@ -73,27 +111,34 @@ export class TeamTraits {
                 if (player.traitOptions.length) player.traitOptions.clear();
                 continue;
             }
-            if (player.traitDeadline > 0 && game.elapsedSeconds >= player.traitDeadline) {
-                const fallback = TRAITS.find(trait => trait.id === player.traitOptions[0]);
-                if (fallback) this.grant(player, fallback.id);
+            if (player.traitDeadline > 0) {
+                const options = player.traitOptions;
+                for (let i = options.length - 1; i >= 0; i--) {
+                    const entry = TRAITS.find(t => t.id === options[i]);
+                    if (!entry || !canUpgrade(player, entry.id, hasAlly)) options.splice(i, 1);
+                }
+                if (!options.length) player.traitDeadline = 0;
+                else if (game.elapsedSeconds >= player.traitDeadline) {
+                    this.grant(player, options[0] as TraitId);
+                }
             }
             // A burst of kills can earn several rounds. Each opens its own full window.
             if (player.traitDeadline === 0 && player.traitOfferId < this.round) {
-                this.drawOptions(player, random);
+                this.drawOptions(player, hasAlly, random);
+                if (!player.traitOptions.length) {
+                    player.traitOfferId = this.round;
+                    continue;
+                }
                 player.traitOfferId++;
                 player.traitDeadline = game.elapsedSeconds + CHOICE_SECONDS;
             }
         }
     }
 
-    private drawOptions(player: PlayerState, random: () => number): void {
-        const hasAlly = Array.from(this.state.players.values()).some(other => other !== player && other.alive);
-        const pool = TRAITS.filter(trait => {
-            if ((trait.id === "assist_mark" || trait.id === "healing_shot") && !hasAlly) return false;
-            return !(trait.id in COMBAT_TRAITS) || !player.traitRanks.has(trait.id);
-        });
+    private drawOptions(player: PlayerState, hasAlly: boolean, random: () => number): void {
+        const pool = TRAITS.filter(trait => canUpgrade(player, trait.id, hasAlly));
         player.traitOptions.clear();
-        while (player.traitOptions.length < 3) {
+        while (pool.length && player.traitOptions.length < 3) {
             const index = Math.floor(random() * pool.length);
             player.traitOptions.push(pool.splice(index, 1)[0].id);
         }
@@ -108,6 +153,8 @@ export class TeamTraits {
         const { offerId, traitId } = message as { offerId?: unknown; traitId?: unknown };
         const selected = TRAITS.find(entry => entry.id === traitId);
         if (offerId !== player.traitOfferId || !selected || !player.traitOptions.includes(selected.id)) return false;
+        const hasAlly = Array.from(this.state.players.values()).some(other => other !== player && other.alive);
+        if (!canUpgrade(player, selected.id, hasAlly)) return false;
         this.grant(player, selected.id);
         return true;
     }

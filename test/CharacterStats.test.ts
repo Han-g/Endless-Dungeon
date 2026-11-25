@@ -186,7 +186,8 @@ describe("처치 경험치와 직업 성장", () => {
             close(p.moveSpeed, base.moveSpeed + 2 * gain.moveSpeed);
             close(p.projectileRange, base.weapon.range + 2 * gain.range);
             close(p.projectileSpeed, base.weapon.speed + 2 * gain.projectileSpeed);
-            assert.equal(p.traitRanks.get("pierce"), 7);
+            assert.equal(p.traitRanks.get("pierce"), 2);
+            assert.equal(p.traitRanks.get("kill_heal"), 5);
             assert.equal(p.traitDeadline, 0);
         }
     });

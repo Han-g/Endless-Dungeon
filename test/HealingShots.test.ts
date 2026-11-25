@@ -57,6 +57,19 @@ describe("Healing shots", () => {
         assert.equal(state.projectiles.get("projectile-2")!.isHealing, true);
     });
 
+    it("keeps each projectile's healing amount at its firing rank", () => {
+        const { owner, advance, player } = arena();
+        const ally = player("ally", -2);
+        ally.hp -= 30;
+        owner.traitRanks.set("healing_shot", 2);
+        advance(100);
+        owner.traitRanks.set("healing_shot", 3);
+        advance(3);
+        assert.equal(ally.hp, ally.maxHp - 30 + 9);
+        advance(100);
+        assert.equal(ally.hp, ally.maxHp - 30 + 9 + 12);
+    });
+
     it("fires the ordinary shot and the additional healing shot on the same tick using current aim", () => {
         const { state, owner, advance, player, projectiles } = arena();
         owner.traitRanks.set("healing_shot", 1);
