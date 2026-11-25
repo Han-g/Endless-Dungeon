@@ -20,7 +20,7 @@ MonoBehaviour:
   projectileSprite: {fileID: -159694450, guid: 80972ac5a8d00874bb6e1b77347cc326, type: 3}
   projectileScale: 0.5
   baseDamage: 7
-  attacksPerSecond: 0.33333334
+  attacksPerSecond: 0.37037037
   moveSpeed: 3.9
   range: 24
   spawnDistance: 0

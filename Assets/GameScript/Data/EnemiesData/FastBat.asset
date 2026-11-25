@@ -20,6 +20,6 @@ MonoBehaviour:
   moveAnimationFps: 8
   moveSpeed: 3.65
   separationRadius: 0.8
-  attackRadius: 0.4
+  attackRadius: 0.44
   maxHealth: 9
   contactDamage: 4
