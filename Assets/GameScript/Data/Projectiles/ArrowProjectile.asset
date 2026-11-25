@@ -21,7 +21,7 @@ MonoBehaviour:
   projectileScale: 0.7
   baseDamage: 8
   attacksPerSecond: 1.6
-  moveSpeed: 12
-  range: 8
+  moveSpeed: 15
+  range: 12
   spawnDistance: 0.7
   rotationOffset: -45

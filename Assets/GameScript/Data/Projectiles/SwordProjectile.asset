@@ -18,7 +18,7 @@ MonoBehaviour:
   weaponName: Sword
   equippedSprite: {fileID: -3753825769889500098, guid: 9ae243a9c6148b94d85f295c0b80ecd8, type: 3}
   projectileSprite: {fileID: 6221652688999390033, guid: 826f439fa7d9a4c49a584baa75eafd75, type: 3}
-  baseDamage: 14
+  baseDamage: 15
   attacksPerSecond: 0.8
   moveSpeed: 12
   range: 8
