@@ -127,7 +127,7 @@ describe("Team trait choices", () => {
         a.traitRanks.set("hurt_grace", 1);
         sim.projectileSystem.setAttackInput("a", {aimX: 1, aimY: 0});
         sim.projectileSystem.update(0);
-        assert.equal(sim.projectileSystem.getRuntimeProjectile("projectile-1")!.remainingHitCount, 4);
+        assert.equal(sim.projectileSystem.getRuntimeProjectile("projectile-1")!.remainingHitCount, 3);
         const enemy = new EnemyState();
         enemy.hp = enemy.maxHp = 30;
         state.enemies.set("touch", enemy);

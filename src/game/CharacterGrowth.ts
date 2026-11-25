@@ -22,13 +22,13 @@ interface StatGain {
 // 모두 레벨 1회당 더하는 절대량입니다. 체력·피해는 정수, 속도·사거리는 소수를 허용합니다.
 export const GAINS_PER_LEVEL: Readonly<Record<number, Readonly<StatGain>>> = {
     // 전사
-    1: { maxHp: 20, damage: 2, attacksPerSecond: 0.02, moveSpeed: 0.04, projectileSpeed: 0, range: 0 },
+    1: { maxHp: 10, damage: 2, attacksPerSecond: 0.05, moveSpeed: 0.10, projectileSpeed: 0.05, range: 0.1 },
     // 궁수
-    2: { maxHp: 5, damage: 1, attacksPerSecond: 0.15, moveSpeed: 0.10, projectileSpeed: 0, range: 0.5 },
+    2: { maxHp: 5, damage: 1, attacksPerSecond: 0.20, moveSpeed: 0.20, projectileSpeed: 0.1, range: 0.8 },
     // 도적
-    3: { maxHp: 5, damage: 1, attacksPerSecond: 0.08, moveSpeed: 0.25, projectileSpeed: 0, range: 0 },
+    3: { maxHp: 5, damage: 1, attacksPerSecond: 0.15, moveSpeed: 0.25, projectileSpeed: 0.1, range: 0.5 },
     // 마법사
-    4: { maxHp: 5, damage: 4, attacksPerSecond: 0.02, moveSpeed: 0.04, projectileSpeed: 0.5, range: 0 }
+    4: { maxHp: 5, damage: 4, attacksPerSecond: 0.05, moveSpeed: 0.05, projectileSpeed: 0.5, range: 0.3 }
 };
 
 const MAX_UINT32 = 0xffffffff;

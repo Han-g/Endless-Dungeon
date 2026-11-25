@@ -350,8 +350,8 @@ describe("WSL 인증 HTTP · 실제 MongoDB/Redis · 대기방 WebSocket", funct
             }
             const warrior = state.players.get(host.sessionId);
             const archer = state.players.get(guest.sessionId);
-            assert.equal(warrior.maxHp, 200);
-            assert.equal(warrior.damage, 18);
+            assert.equal(warrior.maxHp, 170);
+            assert.equal(warrior.damage, 19);
             assert.equal(archer.maxHp, 90);
             assert.equal(archer.damage, 10);
             for (const player of [warrior, archer]) {
