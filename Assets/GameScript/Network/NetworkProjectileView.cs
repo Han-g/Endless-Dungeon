@@ -46,11 +46,12 @@ public sealed class NetworkProjectileView :
         activeRotationOffset =
             definition.RotationOffset;
 
-        Color color =
-            spriteRenderer.color;
+        Color color = state.isHealing
+            ? new Color(0.45f, 1f, 0.5f)
+            : spriteRenderer.color;
 
         color.a =
-            isLocalProjectile || definition.IsEnemyProjectile
+            isLocalProjectile || definition.IsEnemyProjectile || state.isHealing
                 ? 1f
                 : remoteProjectileAlpha;
 

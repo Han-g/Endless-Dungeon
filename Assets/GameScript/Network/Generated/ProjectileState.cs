@@ -33,5 +33,8 @@ public ProjectileState() { }
 
 		[Type(5, "float32")]
 		public float directionY = default(float);
+
+		[Type(6, "boolean")]
+		public bool isHealing = default(bool);
 	}
 }

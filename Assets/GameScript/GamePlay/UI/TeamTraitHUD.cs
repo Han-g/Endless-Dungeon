@@ -19,13 +19,19 @@ public sealed class TeamTraitHUD : MonoBehaviour
     private uint shownOffer, lastKills, lastTarget, lastRank;
     private string lastTrait;
     private int shownSeconds = -1;
+    private string[] shownOptions;
 
     private void Awake()
     {
+        shownOptions = new string[buttons.Length];
         for (int i = 0; i < buttons.Length; i++)
         {
             int index = i;
             buttons[i].onClick.AddListener(() => Pick(index));
+            labels[i].fontSizeMax = labels[i].fontSize;
+            labels[i].fontSizeMin = 12f;
+            labels[i].enableAutoSizing = true;
+            labels[i].textWrappingMode = TextWrappingModes.Normal;
         }
     }
 
@@ -79,7 +85,7 @@ public sealed class TeamTraitHUD : MonoBehaviour
         var state = networkManager.State;
         string id = networkManager.LocalSessionId;
         if (state?.game?.phase != "playing" || string.IsNullOrEmpty(id) || state.players == null ||
-            !state.players.TryGetValue(id, out var player) || state.traitCatalog?.Count != buttons.Length)
+            !state.players.TryGetValue(id, out var player) || state.traitCatalog == null)
         {
             if (panel.activeSelf) Hide();
             return;
@@ -98,27 +104,39 @@ public sealed class TeamTraitHUD : MonoBehaviour
             string line = lastTarget > 0 ? $"Team kills   {kills} / {lastTarget}" : $"Team kills   {kills}";
             for (int i = 0; i < catalog.Count; i++)
             {
-                if (catalog[i].id == lastTrait) line += $"\n{catalog[i].title}   Rank {rank}";
+                var entry = catalog[i];
+                if (entry != null && entry.id == lastTrait) line += $"\n{entry.title}   Rank {rank}";
             }
             progress.text = line;
         }
 
         int seconds = Mathf.CeilToInt((float)(player.traitDeadline - state.game.elapsedSeconds));
-        if (!player.alive || player.traitDeadline <= 0 || seconds <= 0)
+        var options = player.traitOptions;
+        if (!player.alive || player.traitDeadline <= 0 || seconds <= 0 || options?.Count != buttons.Length)
         {
             if (choices.activeSelf) CloseChoices();
             return;
         }
-        if (shownOffer != player.traitOfferId)
+        for (int i = 0; i < buttons.Length; i++)
         {
-            shownOffer = player.traitOfferId;
-            for (int i = 0; i < buttons.Length; i++)
+            if (shownOffer == player.traitOfferId && shownOptions[i] == options[i]) continue;
+            TraitDefinitionState trait = null;
+            for (int j = 0; j < catalog.Count; j++)
             {
-                var trait = catalog[i];
-                labels[i].text = $"<b>[{i+1}]  {trait.title}   /   Rank {Rank(player, trait.id)+1}</b>\n{trait.description}";
+                if (catalog[j]?.id != options[i]) continue;
+                trait = catalog[j];
+                break;
             }
-            choices.SetActive(true);
+            if (trait == null)
+            {
+                CloseChoices();
+                return;
+            }
+            shownOptions[i] = trait.id;
+            labels[i].text = $"<b>[{i+1}]  {trait.title}   /   Rank {Rank(player, trait.id)+1}</b>\n{trait.description}";
         }
+        shownOffer = player.traitOfferId;
+        if (!choices.activeSelf) choices.SetActive(true);
         if (shownSeconds != seconds)
         {
             shownSeconds = seconds;
@@ -140,10 +158,12 @@ public sealed class TeamTraitHUD : MonoBehaviour
         var state = networkManager.State;
         if (shownOffer == 0 || state?.game?.phase != "playing" ||
             !state.players.TryGetValue(networkManager.LocalSessionId, out var player) || !player.alive ||
-            player.traitOfferId != shownOffer || player.traitDeadline <= state.game.elapsedSeconds) return;
+            player.traitOfferId != shownOffer || player.traitDeadline <= state.game.elapsedSeconds ||
+            player.traitOptions?.Count != buttons.Length || (uint)index >= buttons.Length ||
+            player.traitOptions[index] != shownOptions[index]) return;
         try
         {
-            await networkManager.ChooseTraitAsync(shownOffer, state.traitCatalog[index].id);
+            await networkManager.ChooseTraitAsync(shownOffer, shownOptions[index]);
         }
         catch (Exception error)
         {

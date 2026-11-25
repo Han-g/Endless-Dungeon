@@ -39,5 +39,11 @@ public EnemyState() { }
 
 		[Type(7, "boolean")]
 		public bool alive = default(bool);
+
+		[Type(8, "boolean")]
+		public bool slowed = default(bool);
+
+		[Type(9, "boolean")]
+		public bool marked = default(bool);
 	}
 }

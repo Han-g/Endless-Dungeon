@@ -93,5 +93,8 @@ public PlayerState() { }
 
 		[Type(25, "map", typeof(MapSchema<uint>), "uint32")]
 		public MapSchema<uint> traitRanks = null;
+
+		[Type(26, "array", typeof(ArraySchema<string>), "string")]
+		public ArraySchema<string> traitOptions = null;
 	}
 }

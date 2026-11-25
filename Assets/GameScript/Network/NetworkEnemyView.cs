@@ -16,6 +16,9 @@ public sealed class NetworkEnemyView :
     private float positionLerpSpeed = 15f;
 
     private EnemyDefinition definition;
+    private Color normalColor = Color.white;
+    private static Sprite markerSprite;
+    private SpriteRenderer markRenderer;
 
     private Vector2 targetPosition;
     private Vector2 networkVelocity;
@@ -60,6 +63,7 @@ public sealed class NetworkEnemyView :
                 GetComponentInChildren<
                     SpriteRenderer>(true);
         }
+        if (spriteRenderer != null) normalColor = spriteRenderer.color;
     }
 
     public void Initialize(
@@ -127,6 +131,8 @@ public sealed class NetworkEnemyView :
         {
             spriteRenderer.enabled =
                 IsAlive;
+            spriteRenderer.color = state.slowed ? normalColor * new Color(0.5f, 0.85f, 1f) : normalColor;
+            ShowMark(IsAlive && state.marked);
         }
 
         if (
@@ -140,6 +146,31 @@ public sealed class NetworkEnemyView :
                     targetPosition.y,
                     0f);
         }
+    }
+
+    private void ShowMark(bool visible)
+    {
+        if (visible && markRenderer == null)
+        {
+            if (markerSprite == null)
+            {
+                var texture = Texture2D.whiteTexture;
+                markerSprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height),
+                    new Vector2(0.5f, 0.5f), texture.width, 0, SpriteMeshType.FullRect);
+            }
+            var indicator = new GameObject("Co-op mark");
+            indicator.transform.SetParent(spriteRenderer.transform, false);
+            float top = spriteRenderer.sprite != null ? spriteRenderer.sprite.bounds.max.y : 0.5f;
+            indicator.transform.localPosition = new Vector3(0f, top + 0.16f, 0f);
+            indicator.transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+            indicator.transform.localScale = Vector3.one * 0.18f;
+            markRenderer = indicator.AddComponent<SpriteRenderer>();
+            markRenderer.sprite = markerSprite;
+            markRenderer.color = new Color(1f, 0.8f, 0.16f);
+            markRenderer.sortingLayerID = spriteRenderer.sortingLayerID;
+            markRenderer.sortingOrder = spriteRenderer.sortingOrder + 1;
+        }
+        if (markRenderer != null) markRenderer.enabled = visible;
     }
 
     private void Update()
