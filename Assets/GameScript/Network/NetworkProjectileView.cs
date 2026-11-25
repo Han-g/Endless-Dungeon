@@ -50,7 +50,7 @@ public sealed class NetworkProjectileView :
             spriteRenderer.color;
 
         color.a =
-            isLocalProjectile
+            isLocalProjectile || definition.IsEnemyProjectile
                 ? 1f
                 : remoteProjectileAlpha;
 

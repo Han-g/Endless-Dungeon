@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2037617755445da48bd9df3f57d3b536, type: 3}
+  m_Name: ElderTreant
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyDefinition
+  typeId: 3
+  sprite: {fileID: -338813868, guid: 80972ac5a8d00874bb6e1b77347cc326, type: 3}
+  moveFrames:
+  - {fileID: -338813868, guid: 80972ac5a8d00874bb6e1b77347cc326, type: 3}
+  - {fileID: -1993645939, guid: 80972ac5a8d00874bb6e1b77347cc326, type: 3}
+  moveAnimationFps: 3
+  moveSpeed: 1.45
+  separationRadius: 0.8
+  attackRadius: 0.55
+  maxHealth: 36
+  contactDamage: 12

@@ -13,7 +13,7 @@ public sealed class EnemyDefinition : ScriptableObject
     [SerializeField] private float separationRadius = 0.8f;
     [SerializeField] private float attackRadius = 1.2f;
     [SerializeField] private int maxHealth = 10;
-    [SerializeField, Min(1)] private int contactDamage = 10;
+    [SerializeField, Min(0)] private int contactDamage = 10;
 
     public int TypeId => typeId;
     public Sprite Sprite => sprite;

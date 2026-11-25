@@ -9,6 +9,8 @@ public class ProjectileDefinition : ScriptableObject
     [SerializeField]
     private int projectileId;
 
+    [SerializeField] private bool isEnemyProjectile;
+
     [SerializeField]
     private string displayName;
 
@@ -41,6 +43,7 @@ public class ProjectileDefinition : ScriptableObject
     private float rotationOffset = -90f;
 
     public int ProjectileId => projectileId;
+    public bool IsEnemyProjectile => isEnemyProjectile;
     public string DisplayName => displayName;
     public string WeaponName => weaponName;
     public Sprite EquippedSprite => equippedSprite;

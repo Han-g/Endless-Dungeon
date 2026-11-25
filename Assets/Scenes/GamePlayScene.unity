@@ -646,6 +646,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: ac610111f5a065444ba85d1f0e538729, type: 2}
   - {fileID: 11400000, guid: 8f4e9cddd5e506842a0107aec51d4711, type: 2}
   - {fileID: 11400000, guid: 3dfeca1b08567074498f29509009d6e5, type: 2}
+  - {fileID: 11400000, guid: 21002b2ede4d4d86bcc9b90f50e74e45, type: 2}
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
@@ -4322,6 +4323,8 @@ MonoBehaviour:
   enemyDefinitions:
   - {fileID: 11400000, guid: 825a16c231270824aae144acec471e57, type: 2}
   - {fileID: 11400000, guid: fc76ffb21a9149eabdce16f04ba15acc, type: 2}
+  - {fileID: 11400000, guid: 4150152ba09e4b528f88d411f8a11227, type: 2}
+  - {fileID: 11400000, guid: 63a11babbfbe4b9e87f37041323f5cc8, type: 2}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
