@@ -120,7 +120,7 @@ export const ENEMY_CONFIGS:
                 bodyRadius: 0.3,
                 knockbackMultiplier: 1,
                 movement: { kind: "chase", stopDistance: 0.4 },
-                contact: { damage: 4, range: 0.4, intervalSeconds: 0.75 },
+                contact: { damage: 4, range: 0.44, intervalSeconds: 0.75 },
                 attack: null
             }
         ],
@@ -150,7 +150,7 @@ export const ENEMY_CONFIGS:
                 attack: {
                     kind: "projectile", projectileTypeId: 5,
                     damage: 7, speed: 3.9, range: 24, hitRadius: 0.15,
-                    attackRange: 6.5, windupSeconds: 0.65, recoverySeconds: 0.4, cooldownSeconds: 3,
+                    attackRange: 6.5, windupSeconds: 0.325, recoverySeconds: 0.2, cooldownSeconds: 2.7,
                     shotCount: 1, spreadDegrees: 0,
                     originOffsetX: 0, originOffsetY: 0.25, spawnDistance: 0
                 }

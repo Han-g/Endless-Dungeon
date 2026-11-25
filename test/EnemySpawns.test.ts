@@ -135,7 +135,17 @@ function encounter(typeId: number, playerDistance: number) {
     return { state, simulation, player, enemy, advance, bolts };
 }
 
-describe("Treant and caster encounters", () => {
+describe("Enemy encounters", () => {
+    it("deals bat contact damage just inside the 0.44 radius but not just outside", () => {
+        const { simulation, player, enemy } = encounter(2, 0.441);
+        const hp = player.hp;
+        // Run only combat so that chasing cannot move the bat across the boundary.
+        simulation.combatSystem.update(50);
+        assert.equal(player.hp, hp);
+        player.x = enemy.x + 0.439;
+        simulation.combatSystem.update(50);
+        assert.equal(player.hp, hp - 4);
+    });
     it("gives the treant heavy contact damage and one quarter of normal knockback", () => {
         const fight = encounter(3, 0.5);
         const fullHp = fight.player.hp;
@@ -169,29 +179,41 @@ describe("Treant and caster encounters", () => {
     it("locks the cast direction during windup, allowing a sidestep, and respects cooldown", () => {
         const fight = encounter(4, 5);
         const hp = fight.player.hp;
-        fight.advance(8);
+        fight.advance(4);
         assert.equal(fight.enemy.x, -8);
         assert.equal(fight.bolts().length, 0);
         fight.player.y += 2;
-        fight.advance(5); // 0.65s total, first cast started on tick one.
+        fight.advance(3); // 0.30s since the first cast began on tick one.
         assert.equal(fight.bolts().length, 0);
-        fight.advance(2);
+        fight.advance(1); // First 50ms tick past the 0.325s windup.
         const [shot] = fight.bolts();
         assert.ok(shot);
         assert.equal(shot.projectileTypeId, 5);
         assert.ok(shot.directionX > 0.99 && Math.abs(shot.directionY) < 0.05);
         const laterShots = () => fight.bolts().filter(bolt => bolt !== shot);
-        fight.advance(46);
+        fight.advance(53);
         assert.equal(fight.player.hp, hp);
         assert.equal(laterShots().length, 0);
-        fight.advance(15);
+        fight.advance(1); // 54 ticks (2.70s) between shots.
         assert.equal(laterShots().length, 1);
+    });
+
+    it("resumes chasing after the caster's 0.2s recovery", () => {
+        const fight = encounter(4, 5);
+        fight.advance(8);
+        assert.equal(fight.bolts().length, 1);
+        const startX = fight.enemy.x;
+        fight.player.x = startX + 8;
+        fight.advance(3);
+        assert.equal(fight.enemy.x, startX);
+        fight.advance(2);
+        assert.ok(fight.enemy.x > startX);
     });
 
     it("cancels a winding cast on knockback or death", () => {
         for (const interruptedBy of ["knockback", "death"]) {
             const fight = encounter(4, 5);
-            fight.advance(8);
+            fight.advance(4);
             if (interruptedBy === "knockback") {
                 fight.simulation.enemySystem.applyKnockback("subject", -1, 0);
             } else {
