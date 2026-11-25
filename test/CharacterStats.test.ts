@@ -6,6 +6,8 @@ import { ReadyRules } from "../src/rooms/ReadyRules.js";
 import { PlayerSystem } from "../src/simulation/PlayerSystem.js";
 import { ProjectileSystem } from "../src/simulation/ProjectileSystem.js";
 import { GAINS_PER_LEVEL, LEVEL_XP, rewardMonsterKill } from "../src/game/CharacterGrowth.js";
+import { startFiveMinuteScenario } from "../src/simulation/FiveMinuteScenario.js";
+import { GameSimulation } from "../src/simulation/GameSimulation.js";
 import { MapCollision } from "../src/simulation/MapCollision.js";
 
 function fixture() {
@@ -22,6 +24,42 @@ function close(actual: number, expected: number) {
 }
 
 describe("캐릭터 기본 능력치", () => {
+    it("직업별 1레벨 기본 공격 피해에 따라 체력 15인 슬라임을 처치한다", () => {
+        for (const definition of CHARACTER_DEFINITIONS) {
+            const { state, player } = fixture();
+            applyCharacterBaseStats(player, definition.id);
+            player.x = -2;
+            state.game.phase = "playing";
+            const game = new GameSimulation(state);
+            for (let tick = 0; tick < 24; tick++) game.enemySystem.update(50);
+            assert.equal(state.enemies.size, 1);
+            const slime = state.enemies.get("enemy-1")!;
+            assert.equal(slime.typeId, 1);
+            assert.equal(slime.hp, slime.maxHp);
+            assert.equal(slime.maxHp, 15);
+            slime.x = player.x + definition.weapon.spawnDistance;
+            slime.y = player.y + definition.weapon.originOffsetY;
+
+            game.projectileSystem.setAttackInput("host", { aimX: 1, aimY: 0 });
+            game.projectileSystem.update(0);
+            assert.equal(state.projectiles.size, 1);
+            game.combatSystem.update(50);
+            const afterFirstHit = Math.max(0, 15 - definition.weapon.damage);
+            assert.equal(slime.hp, afterFirstHit);
+            assert.equal(state.enemies.has("enemy-1"), afterFirstHit > 0);
+            if (afterFirstHit > 0) {
+                assert.equal(player.killCount, 0);
+                const ticksToNextShot = Math.ceil(1000 / (50 * player.attacksPerSecond)) + 1;
+                for (let tick = 0; tick < ticksToNextShot && slime.alive; tick++) {
+                    game.projectileSystem.update(50);
+                    game.combatSystem.update(50);
+                }
+            }
+            assert.equal(state.enemies.size, 0);
+            assert.equal(player.killCount, 1);
+        }
+    });
+
     it("준비 완료와 별도 캐릭터 선택 모두 체력과 이동속도를 적용한다", () => {
         const { player, rules } = fixture();
         for (const definition of CHARACTER_DEFINITIONS) {
@@ -119,6 +157,61 @@ describe("캐릭터 기본 능력치", () => {
 });
 
 describe("처치 경험치와 직업 성장", () => {
+    it("5분 시나리오가 네 직업의 처치 성장과 이미 지난 팀 보상을 함께 복원한다", () => {
+        const state = new MyRoomState();
+        state.game.phase = "playing";
+        for (const def of CHARACTER_DEFINITIONS) {
+            const player = new PlayerState();
+            applyCharacterBaseStats(player, def.id);
+            player.x = -2;
+            state.players.set(String(def.id), player);
+        }
+        startFiveMinuteScenario(state, new GameSimulation(state));
+        assert.equal(state.game.elapsedSeconds, 300);
+        assert.equal(state.game.killCount, 200);
+        assert.equal(state.nextTraitKills, 220);
+        for (const p of state.players.values()) {
+            const base = getCharacterDefinition(p.characterId);
+            const gain = GAINS_PER_LEVEL[p.characterId];
+            assert.equal(p.killCount, 50);
+            assert.equal(p.experience, 500);
+            assert.equal(p.level, 3);
+            assert.equal(p.levelStartExperience, LEVEL_XP[2]);
+            assert.equal(p.nextLevelExperience, LEVEL_XP[3]);
+            assert.equal(p.bonusProjectileHits, 1);
+            assert.equal(p.maxHp, base.maxHp + 2 * gain.maxHp);
+            assert.equal(p.hp, p.maxHp);
+            assert.equal(p.damage, base.weapon.damage + 2 * gain.damage);
+            close(p.attacksPerSecond, base.weapon.attacksPerSecond + 2 * gain.attacksPerSecond);
+            close(p.moveSpeed, base.moveSpeed + 2 * gain.moveSpeed);
+            close(p.projectileRange, base.weapon.range + 2 * gain.range);
+            close(p.projectileSpeed, base.weapon.speed + 2 * gain.projectileSpeed);
+            assert.equal(p.traitRanks.get("pierce"), 7);
+            assert.equal(p.traitDeadline, 0);
+        }
+    });
+
+    it("레벨 1부터 만렙까지 전사는 체력, 마법사는 단발 피해, 도적은 기동력, 궁수는 연사에 앞선다", () => {
+        const makePlayer = (id: number) => {
+            const player = new PlayerState();
+            applyCharacterBaseStats(player, id);
+            return player;
+        };
+        const party = [1, 2, 3, 4].map(makePlayer);
+        const [warrior, archer, rogue, mage] = party;
+        for (const [index, threshold] of LEVEL_XP.entries()) {
+            for (const player of party) {
+                if (index > 0) rewardMonsterKill(player, threshold - player.experience);
+                assert.equal(player.level, index + 1);
+            }
+            assert.ok(warrior.maxHp > Math.max(archer.maxHp, rogue.maxHp, mage.maxHp));
+            assert.ok(mage.damage > warrior.damage && warrior.damage > Math.max(archer.damage, rogue.damage));
+            assert.ok(archer.attacksPerSecond > rogue.attacksPerSecond &&
+                rogue.attacksPerSecond > Math.max(warrior.attacksPerSecond, mage.attacksPerSecond));
+            assert.ok(rogue.moveSpeed > archer.moveSpeed && archer.moveSpeed > Math.max(warrior.moveSpeed, mage.moveSpeed));
+        }
+    });
+
     it("누적 경계에서만 강화하고 여러 레벨을 건너뛴 보상도 모두 적용한다", () => {
         const { player } = fixture();
         const base = getCharacterDefinition(1);

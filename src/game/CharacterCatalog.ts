@@ -31,37 +31,37 @@ export interface CharacterBaseStatsTarget {
 // 기본 체력/이동속도와 실제 공격 수치를 함께 관리합니다.
 export const CHARACTER_DEFINITIONS: readonly CharacterDefinition[] = [
     {
-        id: 1, maxHp: 150, moveSpeed: 3.5,
+        id: 1, maxHp: 160, moveSpeed: 3.5,
         weapon: {
-            projectileTypeId: 1, attacksPerSecond: 0.7,
-            speed: 12, range: 8, damage: 15,
+            projectileTypeId: 1, attacksPerSecond: 0.8,
+            speed: 12, range: 8, damage: 14,
             spawnDistance: 0.3, originOffsetY: 0.5,
             hitRadius: 0.25, maxHitCount: 2
         }
     },
     {
-        id: 2, maxHp: 100, moveSpeed: 5,
+        id: 2, maxHp: 80, moveSpeed: 4.5,
         weapon: {
-            projectileTypeId: 2, attacksPerSecond: 1.0,
-            speed: 14, range: 10, damage: 10,
+            projectileTypeId: 2, attacksPerSecond: 1.6,
+            speed: 14, range: 10, damage: 8,
             spawnDistance: 0.3, originOffsetY: 0.5,
             hitRadius: 0.25, maxHitCount: 1
         }
     },
     {
-        id: 3, maxHp: 120, moveSpeed: 6,
+        id: 3, maxHp: 80, moveSpeed: 6,
         weapon: {
-            projectileTypeId: 3, attacksPerSecond: 0.8,
-            speed: 13, range: 7, damage: 12,
+            projectileTypeId: 3, attacksPerSecond: 1.2,
+            speed: 13, range: 7, damage: 8,
             spawnDistance: 0.3, originOffsetY: 0.5,
             hitRadius: 0.25, maxHitCount: 2
         }
     },
     {
-        id: 4, maxHp: 100, moveSpeed: 3.6,
+        id: 4, maxHp: 80, moveSpeed: 3.5,
         weapon: {
-            projectileTypeId: 4, attacksPerSecond: 0.5,
-            speed: 10, range: 9, damage: 20,
+            projectileTypeId: 4, attacksPerSecond: 0.6,
+            speed: 10, range: 9, damage: 22,
             spawnDistance: 0.3, originOffsetY: 0.5,
             hitRadius: 0.25, maxHitCount: 3
         }

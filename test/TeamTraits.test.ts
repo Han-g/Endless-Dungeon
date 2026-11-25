@@ -51,22 +51,70 @@ describe("Team trait choices", () => {
         assert.equal(b.level, 1);
     });
 
-    it("caps healing at max HP, never revives and repeats the team goal after 100", () => {
+    it("accumulates 0.1 HP per kill per rank and carries progress across rank upgrades", () => {
         const { state, a, traits } = setup();
         state.game.killCount = 140;
         traits.update();
         assert.equal(state.nextTraitKills, 180);
         assert.ok(traits.choose("a", {offerId: 1, traitId: "kill_heal"}));
         a.hp -= 5;
+        for (let i = 0; i < 9; i++) healOnKill(a);
+        assert.equal(a.hp, a.maxHp - 5);
         healOnKill(a);
-        assert.equal(a.hp, a.maxHp - 3);
+        assert.equal(a.hp, a.maxHp - 4);
+        for (let i = 0; i < 4; i++) healOnKill(a);
         traits.update();
         assert.ok(traits.choose("a", {offerId: 2, traitId: "kill_heal"}));
+        for (let i = 0; i < 2; i++) healOnKill(a);
+        assert.equal(a.hp, a.maxHp - 4);
+        healOnKill(a); // 4 tenths at rank 1 + 6 tenths at rank 2.
+        assert.equal(a.hp, a.maxHp - 3);
+        for (let i = 0; i < 5; i++) healOnKill(a);
+        assert.equal(a.hp, a.maxHp - 2);
+    });
+
+    it("discards excess drain at full HP and cannot revive a dead player", () => {
+        const { a } = setup();
+        a.hp--;
+        a.traitRanks.set("kill_heal", 12);
         healOnKill(a);
         assert.equal(a.hp, a.maxHp);
-        a.hp = 0; a.alive = false;
-        healOnKill(a);
+        for (let i = 0; i < 9; i++) healOnKill(a);
+        a.hp -= 3;
+        a.traitRanks.set("kill_heal", 1);
+        for (let i = 0; i < 9; i++) healOnKill(a);
+        assert.equal(a.hp, a.maxHp - 3);
+        a.hp = 0;
+        a.alive = false;
+        for (let i = 0; i < 10; i++) healOnKill(a);
         assert.equal(a.hp, 0);
+    });
+
+    it("credits fractional drain only to the living player who lands the killing hit", () => {
+        const state = new MyRoomState();
+        const sim = new GameSimulation(state);
+        state.game.phase = "playing";
+        const shooter = new PlayerState();
+        const ally = new PlayerState();
+        state.players.set("shooter", shooter);
+        state.players.set("ally", ally);
+        for (const p of [shooter, ally]) {
+            p.hp -= 5;
+            p.traitRanks.set("kill_heal", 1);
+            for (let i = 0; i < 9; i++) healOnKill(p);
+        }
+        sim.projectileSystem.setAttackInput("shooter", {aimX: 1, aimY: 0});
+        sim.projectileSystem.update(0);
+        const shot = state.projectiles.get("projectile-1")!;
+        const target = new EnemyState();
+        target.x = shot.x;
+        target.y = shot.y;
+        target.hp = target.maxHp = 1;
+        state.enemies.set("target", target);
+        sim.combatSystem.update(50);
+        assert.equal(shooter.killCount, 1);
+        assert.equal(shooter.hp, shooter.maxHp - 4);
+        assert.equal(ally.hp, ally.maxHp - 5);
     });
 
     it("applies pierce on new shots and grace to real enemy contact", () => {

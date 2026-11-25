@@ -3,7 +3,7 @@ import { EnemyState } from "../rooms/schema/EnemyState.js";
 import { PlayerState } from "../rooms/schema/PlayerState.js";
 import { MapCollision } from "./MapCollision.js";
 import { EnemyNavigation, type NavigationPoint } from "./EnemyNavigation.js";
-import { ENEMY_CONFIGS, type EnemyConfig } from "./EnemyCatalog.js";
+import { ENEMY_CONFIGS, getSpawnMaxHp, type EnemyConfig } from "./EnemyCatalog.js";
 import { SPAWN_PHASES, type EnemySpawnPhase } from "./EnemySpawnPhases.js";
 
 // 최초 반지름은 기존처럼 9~12 중 무작위 선택합니다.
@@ -216,9 +216,9 @@ export class EnemySystem {
         }
     }
 
-    private spawnOne(
+    public spawnOne(
         typeId: number,
-        livingPlayers: readonly PlayerState[]
+        livingPlayers: readonly PlayerState[] = this.collectLivingPlayers()
     ): void {
         const config =
             ENEMY_CONFIGS.get(typeId);
@@ -257,8 +257,8 @@ export class EnemySystem {
         enemy.velocityX = 0;
         enemy.velocityY = 0;
 
-        enemy.hp = config.maxHp;
-        enemy.maxHp = config.maxHp;
+        enemy.maxHp = getSpawnMaxHp(config.maxHp, this.state.game.elapsedSeconds);
+        enemy.hp = enemy.maxHp;
 
         enemy.alive = true;
 

@@ -6,6 +6,7 @@ import { authRuntime } from "../auth/runtime.js";
 import { authForRoom, claimGameAccount, closeAuthConnection, isAuthClosing, releaseGameAccount } from "../auth/roomAuth.js";
 import { MyRoomState } from "./schema/MyRoomState.js";
 import { PlayerState } from "./schema/PlayerState.js";
+import { startFiveMinuteScenario } from "../simulation/FiveMinuteScenario.js";
 import { GameSimulation } from "../simulation/GameSimulation.js";
 import { ReadyRules, type RoomFailure } from "./ReadyRules.js";
 import { CHARACTER_DEFINITIONS, applyCharacterBaseStats } from "../game/CharacterCatalog.js";
@@ -68,6 +69,8 @@ export class WaitingRoom extends Room<{
     public maxClients = 4;
     public maxMessagesPerSecond = 120;
 
+    private readonly fiveMinuteStart =
+        process.env.NODE_ENV === "development" && process.env.ED_BATTLE_SCENARIO === "5min";
     private simulation!: GameSimulation;
     private rules!: ReadyRules;
     private roomTitle = "";
@@ -335,6 +338,7 @@ export class WaitingRoom extends Room<{
             this.loadingTimeout?.clear();
             this.state.game.elapsedSeconds = 0;
             this.state.game.seed = Date.now() & 0x7fffffff;
+            if (this.fiveMinuteStart) startFiveMinuteScenario(this.state, this.simulation);
         }
         if (phase === "finished") this.loadingTimeout?.clear();
     }

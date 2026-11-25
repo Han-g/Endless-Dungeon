@@ -73,6 +73,13 @@ export interface EnemyConfig {
     attack: EnemyAttackConfig | null;
 }
 
+// Only newly spawned enemies use the current multiplier.
+export function getSpawnMaxHp(baseHp: number, elapsedSeconds: number): number {
+    const growthMinutes = Math.max(0, (elapsedSeconds - 120) / 60);
+    const multiplier = Math.min(2.5, 1 + 0.1 * growthMinutes);
+    return Math.round(baseHp * multiplier);
+}
+
 export const ENEMY_CONFIGS:
     ReadonlyMap<number, Readonly<EnemyConfig>> =
     new Map<number, Readonly<EnemyConfig>>([
@@ -81,7 +88,7 @@ export const ENEMY_CONFIGS:
             {
                 typeId: 1,
 
-                maxHp: 30,
+                maxHp: 15, // Slime
                 moveSpeed: 2,
                 bodyRadius: 0.3,
 
@@ -105,8 +112,8 @@ export const ENEMY_CONFIGS:
             2,
             {
                 typeId: 2, // Fast bat
-                maxHp: 15,
-                moveSpeed: 4,
+                maxHp: 9,
+                moveSpeed: 3.65,
                 bodyRadius: 0.3,
                 knockbackMultiplier: 1,
                 movement: { kind: "chase", stopDistance: 0.4 },

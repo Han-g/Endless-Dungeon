@@ -10,6 +10,7 @@
   },
   "scripts": {
     "start": "tsx watch src/index.ts",
+    "start:5min": "NODE_ENV=development ED_BATTLE_SCENARIO=5min tsx watch src/index.ts",
     "loadtest": "tsx loadtest/example.ts --room waiting_room --numClients 2",
     "build": "npm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf build",

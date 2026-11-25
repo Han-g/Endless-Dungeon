@@ -8,11 +8,14 @@ const REPEAT_KILLS = 40;
 const CHOICE_SECONDS = 8;
 
 const PIERCE = 1;
-const KILL_HEAL = 2;
+const TENTHS_PER_HP = 10;
+const DRAIN_TENTHS_PER_RANK = 1;
+// HP is synchronized as an integer. Fractional healing belongs to this player's current life.
+const pendingDrainTenths = new WeakMap<PlayerState, number>();
 const HURT_GRACE = 0.15;
 const TRAITS = [
     { id: "pierce", title: "Piercing shot", description: "+" + PIERCE + " target per projectile" },
-    { id: "kill_heal", title: "Life drain", description: "+" + KILL_HEAL + " HP on your kills" },
+    { id: "kill_heal", title: "Life drain", description: "+" + (DRAIN_TENTHS_PER_RANK / TENTHS_PER_HP) + " HP per kill per rank" },
     { id: "hurt_grace", title: "Second wind", description: "+" + HURT_GRACE + "s protection after a hit" }
 ] as const;
 
@@ -22,8 +25,17 @@ export const extraTraitHits = (player: PlayerState) => PIERCE * rank(player, "pi
 export const extraHurtGrace = (player: PlayerState) => HURT_GRACE * rank(player, "hurt_grace");
 
 export function healOnKill(player: PlayerState): void {
-    const amount = KILL_HEAL * rank(player, "kill_heal");
-    if (amount && player.alive && player.hp > 0) player.hp = Math.min(player.maxHp, player.hp + amount);
+    if (!player.alive || player.hp <= 0 || player.hp >= player.maxHp) {
+        pendingDrainTenths.delete(player);
+        return;
+    }
+    const drainRank = rank(player, "kill_heal");
+    if (drainRank === 0) return;
+
+    const total = (pendingDrainTenths.get(player) ?? 0) + drainRank * DRAIN_TENTHS_PER_RANK;
+    const heal = Math.floor(total / TENTHS_PER_HP);
+    player.hp = Math.min(player.maxHp, player.hp + heal);
+    pendingDrainTenths.set(player, player.hp < player.maxHp ? total % TENTHS_PER_HP : 0);
 }
 
 export class TeamTraits {

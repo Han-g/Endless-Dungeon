@@ -17,7 +17,7 @@ import { authRuntime } from "../src/auth/runtime.js";
 import type { WaitingRoom } from "../src/rooms/WaitingRoom.js";
 import { EnemyState } from "../src/rooms/schema/EnemyState.js";
 import { GAINS_PER_LEVEL, LEVEL_XP, XP_PER_KILL } from "../src/game/CharacterGrowth.js";
-import { CHARACTER_DEFINITIONS } from "../src/game/CharacterCatalog.js";
+import { CHARACTER_DEFINITIONS, getCharacterDefinition } from "../src/game/CharacterCatalog.js";
 
 interface Result { requestId: string; ok: boolean; error: string; }
 const password = "Integration!Password123";
@@ -268,9 +268,10 @@ describe("WSL 인증 HTTP · 실제 MongoDB/Redis · 대기방 WebSocket", funct
             assert.ok(Math.abs(actual - expected) < 0.00001, `${actual} != ${expected}`);
         };
         const initial = host.state.players.get(host.sessionId);
-        assert.equal(initial.hp, 120);
-        assert.equal(initial.maxHp, 120);
-        close(initial.moveSpeed, 6);
+        const rogue = getCharacterDefinition(3);
+        assert.equal(initial.hp, rogue.maxHp);
+        assert.equal(initial.maxHp, rogue.maxHp);
+        close(initial.moveSpeed, rogue.moveSpeed);
         for (const definition of CHARACTER_DEFINITIONS) {
             const stats = host.state.characterCatalog.get(String(definition.id));
             assert.equal(stats.maxHp, definition.maxHp);
@@ -289,16 +290,77 @@ describe("WSL 인증 HTTP · 실제 MongoDB/Redis · 대기방 WebSocket", funct
         await eventually(() => host.state.players.get(guest.sessionId)?.isReady === true,
             "준비 후 능력치 미수신");
         const remote = host.state.players.get(guest.sessionId);
-        assert.equal(remote.hp, 150);
-        assert.equal(remote.maxHp, 150);
-        close(remote.moveSpeed, 3.5);
+        const warrior = getCharacterDefinition(1);
+        assert.equal(remote.hp, warrior.maxHp);
+        assert.equal(remote.maxHp, warrior.maxHp);
+        close(remote.moveSpeed, warrior.moveSpeed);
         assert.equal((await command(guest, "room/character", { characterId: 4 })).ok, true);
         await eventually(() => host.state.players.get(guest.sessionId)?.characterId === 4,
             "변경된 능력치 미수신");
-        assert.equal(remote.hp, 100);
-        close(remote.moveSpeed, 3.6);
+        const mage = getCharacterDefinition(4);
+        assert.equal(remote.hp, mage.maxHp);
+        close(remote.moveSpeed, mage.moveSpeed);
         assert.equal(remote.isReady, false);
-        assert.equal(room.state.players.get(guest.sessionId)?.maxHp, 100);
+        assert.equal(room.state.players.get(guest.sessionId)?.maxHp, mage.maxHp);
+    });
+
+    it("5분 테스트 방은 전원 로딩 후 캐릭터 성장과 몬스터 HP를 소켓으로 한 번만 전송한다", async () => {
+        const previousEnv = process.env.NODE_ENV;
+        const previousScenario = process.env.ED_BATTLE_SCENARIO;
+        let clients: Awaited<ReturnType<typeof pair>>;
+        try {
+            process.env.NODE_ENV = "development";
+            process.env.ED_BATTLE_SCENARIO = "5min";
+            clients = await pair();
+        } finally {
+            if (previousEnv === undefined) delete process.env.NODE_ENV;
+            else process.env.NODE_ENV = previousEnv;
+            if (previousScenario === undefined) delete process.env.ED_BATTLE_SCENARIO;
+            else process.env.ED_BATTLE_SCENARIO = previousScenario;
+        }
+
+        const { host, guest, room } = clients;
+        await readyPair(host, guest);
+        await command(host, "room/start");
+        await command(host, "game/loaded");
+        assert.equal(room.state.game.phase, "loading");
+        assert.equal(room.state.game.elapsedSeconds, 0);
+        assert.equal(room.state.players.get(host.sessionId)!.level, 1);
+        assert.equal(room.state.enemies.size, 0);
+
+        await command(guest, "game/loaded");
+        for (const client of [host, guest]) {
+            await eventually(() => client.state?.game?.elapsedSeconds >= 300 &&
+                client.state.enemies.has("enemy-2"), "5분 초기 상태 미수신");
+            const state = client.state;
+            assert.equal(state.game.phase, "playing");
+            assert.equal(state.game.killCount, 100);
+            assert.equal(state.nextTraitKills, 140);
+            assert.equal(state.enemies.get("enemy-1").typeId, 1);
+            assert.equal(state.enemies.get("enemy-1").hp, 20);
+            assert.equal(state.enemies.get("enemy-1").maxHp, 20);
+            assert.equal(state.enemies.get("enemy-2").typeId, 2);
+            assert.equal(state.enemies.get("enemy-2").hp, 12);
+            assert.equal(state.enemies.get("enemy-2").maxHp, 12);
+            const warrior = state.players.get(host.sessionId);
+            const archer = state.players.get(guest.sessionId);
+            assert.equal(warrior.maxHp, 200);
+            assert.equal(warrior.damage, 18);
+            assert.equal(archer.maxHp, 90);
+            assert.equal(archer.damage, 10);
+            for (const player of [warrior, archer]) {
+                assert.equal(player.level, 3);
+                assert.equal(player.experience, 500);
+                assert.equal(player.killCount, 50);
+                assert.equal(player.traitRanks.get("pierce"), 5);
+                assert.equal(player.traitDeadline, 0);
+            }
+        }
+        const time = room.state.game.elapsedSeconds;
+        assert.ok((await command(guest, "game/loaded")).ok);
+        assert.equal(room.state.game.killCount, 100);
+        assert.ok(room.state.game.elapsedSeconds >= time);
+        assert.equal(room.state.players.get(host.sessionId)!.experience, 500);
     });
 
     it("실제 투사체 처치 시 마지막 타격자의 성장 상태만 소켓으로 전파한다", async () => {
