@@ -24,5 +24,11 @@ public TraitDefinitionState() { }
 
 		[Type(2, "string")]
 		public string description = default(string);
+
+		[Type(3, "uint8")]
+		public byte maxRank = default(byte);
+
+		[Type(4, "array", typeof(ArraySchema<string>), "string")]
+		public ArraySchema<string> rankDescriptions = null;
 	}
 }

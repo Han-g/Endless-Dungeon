@@ -20,10 +20,12 @@ public sealed class TeamTraitHUD : MonoBehaviour
     private string lastTrait;
     private int shownSeconds = -1;
     private string[] shownOptions;
+    private uint[] shownRanks;
 
     private void Awake()
     {
         shownOptions = new string[buttons.Length];
+        shownRanks = new uint[buttons.Length];
         for (int i = 0; i < buttons.Length; i++)
         {
             int index = i;
@@ -105,35 +107,50 @@ public sealed class TeamTraitHUD : MonoBehaviour
             for (int i = 0; i < catalog.Count; i++)
             {
                 var entry = catalog[i];
-                if (entry != null && entry.id == lastTrait) line += $"\n{entry.title}   Rank {rank}";
+                if (entry == null || entry.id != lastTrait) continue;
+                string status = rank >= entry.maxRank ? "   MAX" : "";
+                line += $"\n{entry.title}   Rank {rank}/{entry.maxRank}{status}";
+                break;
             }
             progress.text = line;
         }
 
         int seconds = Mathf.CeilToInt((float)(player.traitDeadline - state.game.elapsedSeconds));
         var options = player.traitOptions;
-        if (!player.alive || player.traitDeadline <= 0 || seconds <= 0 || options?.Count != buttons.Length)
+        int count = options?.Count ?? 0;
+        if (!player.alive || player.traitDeadline <= 0 || seconds <= 0 || count == 0 || count > buttons.Length)
         {
             if (choices.activeSelf) CloseChoices();
             return;
         }
         for (int i = 0; i < buttons.Length; i++)
         {
-            if (shownOffer == player.traitOfferId && shownOptions[i] == options[i]) continue;
+            bool visible = i < count;
+            if (buttons[i].gameObject.activeSelf != visible) buttons[i].gameObject.SetActive(visible);
+            if (!visible)
+            {
+                shownOptions[i] = null;
+                continue;
+            }
+            string optionId = options[i];
+            uint current = Rank(player, optionId);
+            if (shownOffer == player.traitOfferId && shownOptions[i] == optionId && shownRanks[i] == current) continue;
             TraitDefinitionState trait = null;
             for (int j = 0; j < catalog.Count; j++)
             {
-                if (catalog[j]?.id != options[i]) continue;
+                if (catalog[j]?.id != optionId) continue;
                 trait = catalog[j];
                 break;
             }
-            if (trait == null)
+            if (trait == null || current >= trait.maxRank || trait.rankDescriptions == null ||
+                current >= trait.rankDescriptions.Count || string.IsNullOrEmpty(trait.rankDescriptions[(int)current]))
             {
                 CloseChoices();
                 return;
             }
             shownOptions[i] = trait.id;
-            labels[i].text = $"<b>[{i+1}]  {trait.title}   /   Rank {Rank(player, trait.id)+1}</b>\n{trait.description}";
+            shownRanks[i] = current;
+            labels[i].text = $"<b>[{i+1}]  {trait.title}   Rank {current} to {current + 1}/{trait.maxRank}</b>\n{trait.rankDescriptions[(int)current]}";
         }
         shownOffer = player.traitOfferId;
         if (!choices.activeSelf) choices.SetActive(true);
@@ -159,7 +176,7 @@ public sealed class TeamTraitHUD : MonoBehaviour
         if (shownOffer == 0 || state?.game?.phase != "playing" ||
             !state.players.TryGetValue(networkManager.LocalSessionId, out var player) || !player.alive ||
             player.traitOfferId != shownOffer || player.traitDeadline <= state.game.elapsedSeconds ||
-            player.traitOptions?.Count != buttons.Length || (uint)index >= buttons.Length ||
+            (uint)index >= buttons.Length || player.traitOptions == null || index >= player.traitOptions.Count ||
             player.traitOptions[index] != shownOptions[index]) return;
         try
         {
